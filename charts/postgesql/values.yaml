@@ -1,0 +1,7 @@
+postgresql:
+  image: postgres:15
+  port: 5432
+  db: espresso
+  user: espresso_user
+  password: espresso_pass
+  storage: 10Gi
