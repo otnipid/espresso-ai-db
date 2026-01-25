@@ -4,18 +4,6 @@ metadata:
   name: {{ .Release.Name }}-init-sql
 data:
   init.sql: |
-    -- Enable UUID generation
-    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
-    -- =========================
-    -- USERS
-    -- =========================
-    CREATE TABLE users (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        name TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW()
-    );
-
     -- =========================
     -- BEANS
     -- =========================
@@ -57,25 +45,12 @@ data:
     );
 
     -- =========================
-    -- GRINDERS
-    -- =========================
-    CREATE TABLE grinders (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        model TEXT NOT NULL,
-        burr_type TEXT,
-        burr_install_date DATE,
-        created_at TIMESTAMP DEFAULT NOW()
-    );
-
-    -- =========================
     -- SHOTS (CORE EVENT)
     -- =========================
     CREATE TABLE shots (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        user_id UUID REFERENCES users(id),
         bean_batch_id UUID REFERENCES bean_batches(id),
         machine_id UUID REFERENCES machines(id),
-        grinder_id UUID REFERENCES grinders(id),
 
         shot_type TEXT CHECK (shot_type IN ('ristretto', 'normale', 'lungo')),
         pulled_at TIMESTAMP DEFAULT NOW(),
