@@ -1,0 +1,91 @@
+name: Schema Validation
+
+on:
+  push:
+    paths:
+      - 'charts/postgesql/schema/**'
+  pull_request:
+    paths:
+      - 'charts/postgesql/schema/**'
+
+jobs:
+  validate-schema:
+    name: Validate Database Schema
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        postgres-version: ['14', '15', '16']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PostgreSQL ${{ matrix.postgres-version }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-${{ matrix.postgres-version }} postgresql-contrib-${{ matrix.postgres-version }}
+          sudo systemctl start postgresql-${{ matrix.postgres-version }}
+          sudo -u postgres psql -c "CREATE USER test WITH SUPERUSER PASSWORD 'test';"
+          sudo -u postgres createdb -O test testdb
+
+      - name: Validate Schema Files
+        run: |
+          cd charts/postgesql/schema
+          
+          # Check each individual file
+          for file in *.sql; do
+            echo "Validating $file..."
+            PGPASSWORD=test psql -h localhost -U test -d testdb -f "$file"
+          done
+          
+          # Test full schema
+          echo "Testing complete schema..."
+          PGPASSWORD=test psql -h localhost -U test -d testdb -f 00-schema.sql
+
+      - name: Test Schema Constraints
+        run: |
+          cd charts/postgesql/schema
+          
+          # Create test data to validate constraints
+          PGPASSWORD=test psql -h localhost -U test -d testdb << 'EOF'
+          -- Test users table
+          INSERT INTO users (name, email) VALUES ('Test User', 'test@example.com');
+          
+          -- Test beans table
+          INSERT INTO beans (name, roaster, country) VALUES ('Test Bean', 'Test Roaster', 'Test Country');
+          
+          -- Test foreign key constraints
+          INSERT INTO bean_batches (bean_id, roast_level) VALUES (
+            (SELECT id FROM beans WHERE name = 'Test Bean'), 
+            'Medium'
+          );
+          
+          -- Verify data integrity
+          SELECT COUNT(*) as user_count FROM users;
+          SELECT COUNT(*) as bean_count FROM beans;
+          SELECT COUNT(*) as batch_count FROM bean_batches;
+          EOF
+
+      - name: Schema Documentation Check
+        run: |
+          cd charts/postgesql/schema
+          
+          # Check for required documentation
+          for file in *.sql; do
+            if ! grep -q "Purpose:" "$file"; then
+              echo "ERROR: $file missing Purpose documentation"
+              exit 1
+            fi
+            if ! grep -q "Dependencies:" "$file"; then
+              echo "ERROR: $file missing Dependencies documentation"
+              exit 1
+            fi
+            if ! grep -q "Idempotent:" "$file"; then
+              echo "ERROR: $file missing Idempotent documentation"
+              exit 1
+            fi
+          done
+          echo "All schema files have proper documentation"

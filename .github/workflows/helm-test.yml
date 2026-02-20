@@ -1,0 +1,95 @@
+name: Helm Chart Testing
+
+on:
+  push:
+    paths:
+      - 'charts/**'
+  pull_request:
+    paths:
+      - 'charts/**'
+
+jobs:
+  chart-test:
+    name: Test Helm Charts
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        chart: [postgesql]
+        k8s-version: ['1.27.0', '1.28.0', '1.29.0']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.12.0'
+
+      - name: Setup Kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: ${{ matrix.k8s-version }}
+
+      - name: Setup Kind (Kubernetes in Docker)
+        uses: helm/kind-action@v1.8.0
+        with:
+          cluster_name: kind-${{ matrix.k8s-version }}
+          version: ${{ matrix.k8s-version }}
+
+      - name: Install Chart Dependencies
+        run: |
+          cd charts/${{ matrix.chart }}
+          helm dependency update
+
+      - name: Lint Chart
+        run: |
+          cd charts/${{ matrix.chart }}
+          helm lint .
+
+      - name: Install Chart
+        run: |
+          cd charts/${{ matrix.chart }}
+          helm install test-${{ matrix.chart }} . \
+            --wait \
+            --timeout=10m \
+            --set postgresql.password=testpass \
+            --set postgresql.user=testuser \
+            --set postgresql.db=testdb
+
+      - name: Test Chart Installation
+        run: |
+          # Wait for pods to be ready
+          kubectl wait --for=condition=ready pod \
+            -l app.kubernetes.io/instance=test-${{ matrix.chart }} \
+            --timeout=300s
+          
+          # Check pod status
+          kubectl get pods -o wide
+          kubectl get services
+          kubectl get pvc
+
+      - name: Run Integration Tests
+        run: |
+          # Port forward and test database connection
+          kubectl port-forward svc/test-${{ matrix.chart }}-postgres 5432:5432 &
+          PF_PID=$!
+          sleep 10
+          
+          # Test database connection
+          PGPASSWORD=testpass psql -h localhost -U testuser -d testdb -c "SELECT version();"
+          
+          # Test schema creation
+          PGPASSWORD=testpass psql -h localhost -U testuser -d testdb -c "\dt"
+          
+          # Cleanup
+          kill $PF_PID
+
+      - name: Uninstall Chart
+        if: always()
+        run: |
+          helm uninstall test-${{ matrix.chart }} || true
+
+      - name: Cleanup Kind Cluster
+        if: always()
+        run: |
+          kind delete cluster kind-${{ matrix.k8s-version }} || true
