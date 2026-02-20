@@ -1,0 +1,9 @@
+# Minimal base values for chart structure
+# Environment-specific values will override these
+
+postgresql:
+  image: postgres:15
+  port: 5432
+  user: postgres
+  password: null
+  db: espresso_ml
