@@ -25,12 +25,16 @@ jobs:
 
       - name: Helm Lint
         run: |
-          for chart in charts/*/; do
-            if [ -f "$chart/Chart.yaml" ]; then
-              echo "Linting chart: $chart"
-              helm lint "$chart"
-            fi
-          done
+          # Lint base chart
+          echo "Linting base chart: charts/postgesql/"
+          helm lint charts/postgesql/
+          
+          # Lint with environment-specific values
+          echo "Linting with development values..."
+          helm lint charts/postgesql/ -f charts/postgesql/values-development.yaml
+          
+          echo "Linting with production values..."
+          helm lint charts/postgesql/ -f charts/postgesql/values-production.yaml
 
       - name: Validate YAML
         uses: ibiqlik/action-yamllint@v3
