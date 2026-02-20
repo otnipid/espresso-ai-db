@@ -1,15 +1,15 @@
-# Backend Deployment for Staging Environment
+# Backend Deployment for Development Environment
 # Feature: Automatic Deployment
-# Environment: Staging
+# Environment: Development
 
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: espresso-api
-  namespace: espresso-staging
+  namespace: espresso-development
   labels:
     app: espresso-api
-    env: staging
+    env: development
     version: v1
 spec:
   replicas: 2
@@ -21,17 +21,17 @@ spec:
   selector:
     matchLabels:
       app: espresso-api
-      env: staging
+      env: development
   template:
     metadata:
       labels:
         app: espresso-api
-        env: staging
+        env: development
         version: v1
     spec:
       containers:
       - name: espresso-api
-        image: ghcr.io/nicholasdipinto/espresso-ml/backend:develop-staging
+        image: ghcr.io/nicholasdipinto/espresso-ml/backend:develop-development
         imagePullPolicy: Always
         ports:
         - containerPort: 3001
@@ -39,7 +39,7 @@ spec:
           protocol: TCP
         env:
         - name: NODE_ENV
-          value: "staging"
+          value: "development"
         - name: PORT
           value: "3001"
         - name: DB_HOST
@@ -67,7 +67,7 @@ spec:
               name: app-secret
               key: jwt-secret
         - name: CORS_ORIGIN
-          value: "https://staging.espresso-ml.com"
+          value: "https://development.espresso-ml.com"
         resources:
           requests:
             memory: "256Mi"

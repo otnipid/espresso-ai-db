@@ -1,15 +1,15 @@
-# PostgreSQL Deployment for Staging Environment
+# PostgreSQL Deployment for Development Environment
 # Feature: Automatic Deployment
-# Environment: Staging
+# Environment: Development
 
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres
-  namespace: espresso-staging
+  namespace: espresso-development
   labels:
     app: postgres
-    env: staging
+    env: development
 spec:
   replicas: 1
   strategy:
@@ -17,12 +17,12 @@ spec:
   selector:
     matchLabels:
       app: postgres
-      env: staging
+      env: development
   template:
     metadata:
       labels:
         app: postgres
-        env: staging
+        env: development
     spec:
       containers:
       - name: postgres

@@ -1,21 +1,21 @@
-# Application Configuration for Staging Environment
+# Application Configuration for Development Environment
 # Feature: Automatic Deployment
-# Environment: Staging
+# Environment: Development
 
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: app-config
-  namespace: espresso-staging
+  namespace: espresso-development
   labels:
     app: espresso-api
-    env: staging
+    env: development
 data:
-  NODE_ENV: "staging"
+  NODE_ENV: "development"
   LOG_LEVEL: "debug"
-  CORS_ORIGIN: "https://staging.espresso-ml.com"
-  API_BASE_URL: "https://staging-api.espresso-ml.com"
-  FRONTEND_URL: "https://staging.espresso-ml.com"
+  CORS_ORIGIN: "https://development.espresso-ml.com"
+  API_BASE_URL: "https://development-api.espresso-ml.com"
+  FRONTEND_URL: "https://development.espresso-ml.com"
   DB_HOST: "postgres-service"
   DB_PORT: "5432"
   DB_SSL_MODE: "prefer"
@@ -23,7 +23,7 @@ data:
   DB_POOL_MAX: "10"
   REDIS_HOST: "redis-service"
   REDIS_PORT: "6379"
-  SESSION_SECRET: "staging-session-secret"
+  SESSION_SECRET: "development-session-secret"
   RATE_LIMIT_WINDOW_MS: "900000"
   RATE_LIMIT_MAX_REQUESTS: "100"
   ENABLE_METRICS: "true"

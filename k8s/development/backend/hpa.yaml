@@ -1,15 +1,15 @@
-# Horizontal Pod Autoscaler for Backend - Staging
+# Horizontal Pod Autoscaler for Backend - Development
 # Feature: Automatic Deployment
-# Environment: Staging
+# Environment: Development
 
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: espresso-api-hpa
-  namespace: espresso-staging
+  namespace: espresso-development
   labels:
     app: espresso-api
-    env: staging
+    env: development
 spec:
   scaleTargetRef:
     apiVersion: apps/v1

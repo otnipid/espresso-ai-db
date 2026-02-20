@@ -1,15 +1,15 @@
-# PostgreSQL Persistent Volume Claim for Staging Environment
+# PostgreSQL Persistent Volume Claim for Development Environment
 # Feature: Automatic Deployment
-# Environment: Staging
+# Environment: Development
 
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-pvc
-  namespace: espresso-staging
+  namespace: espresso-development
   labels:
     app: postgres
-    env: staging
+    env: development
 spec:
   accessModes:
   - ReadWriteOnce
