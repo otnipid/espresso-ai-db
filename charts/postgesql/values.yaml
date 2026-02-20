@@ -1,7 +1,7 @@
-# Minimal base values for chart structure
-# Environment-specific values will override these
-
+---
 postgresql:
+  # Minimal base values for chart structure
+  # Environment-specific values will override these
   image: postgres:15
   port: 5432
   user: postgres

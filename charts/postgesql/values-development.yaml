@@ -1,9 +1,23 @@
+---
 postgresql:
+  # PostgreSQL image
+  image: postgres:15
+
+  # PostgreSQL port
+  port: 5432
+
+  # PostgreSQL credentials (will be overridden by --set flags)
   user: espresso_dev_user
-  password: null  # Set via --set
-  database: espresso_ml_development
+  password: null
+  db: espresso_ml_development
+
+  # Persistence configuration
   persistence:
+    enabled: true
     size: 10Gi
+    storageClass: fast-ssd
+
+  # Resource configuration
   resources:
     requests:
       memory: "512Mi"
