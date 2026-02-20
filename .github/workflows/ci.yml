@@ -81,15 +81,14 @@ jobs:
           version: 'v3.12.0'
 
       - name: Setup Kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
         with:
-          version: ${{ matrix.k8s-version }}
+          version: 'v1.28.0'
 
       - name: Setup Kind (Kubernetes in Docker)
         uses: helm/kind-action@v1.8.0
         with:
           cluster_name: kind-${{ matrix.k8s-version }}
-          version: ${{ matrix.k8s-version }}
 
       - name: Install Chart Dependencies
         run: |
