@@ -37,7 +37,7 @@ jobs:
       - name: Configure kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: '1.27.0'
+          version: 'v1.31.0'
 
       - name: Set kubectl context
         uses: azure/k8s-set-context@v3
@@ -107,7 +107,7 @@ jobs:
       - name: Configure kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: '1.27.0'
+          version: 'v1.31.0'
 
       - name: Set kubectl context
         uses: azure/k8s-set-context@v3
