@@ -27,6 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'production'
     environment: production
+    env:
+      NAMESPACE: espresso-production
+      ENVIRONMENT: production
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -42,9 +45,9 @@ jobs:
           cd charts/postgesql
           helm dependency update
           helm upgrade --install espresso-db . \
-            --namespace espresso-production \
+            --namespace ${{ env.NAMESPACE }} \
             --create-namespace \
-            --set postgresql.image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --values values-${{ env.ENVIRONMENT }}.yaml \
             --set postgresql.password=${{ secrets.POSTGRES_PASSWORD_PROD }} \
             --set postgresql.user=${{ secrets.POSTGRES_USER_PROD }} \
             --set postgresql.db=${{ secrets.POSTGRES_DB_PROD }} \
@@ -53,16 +56,16 @@ jobs:
 
       - name: Verify Deployment
         run: |
-          kubectl get pods -n espresso-production
-          kubectl get services -n espresso-production
-          kubectl get pvc -n espresso-production
+          kubectl get pods -n ${{ env.NAMESPACE }}
+          kubectl get services -n ${{ env.NAMESPACE }}
+          kubectl get pvc -n ${{ env.NAMESPACE }}
           
       - name: Run Health Checks
         run: |
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=espresso-db -n espresso-production --timeout=300s
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=espresso-db -n ${{ env.NAMESPACE }} --timeout=300s
           
           # Test database connection
-          kubectl port-forward -n espresso-production svc/espresso-db-postgres 5432:5432 &
+          kubectl port-forward -n ${{ env.NAMESPACE }} svc/espresso-db-postgres 5432:5432 &
           PF_PID=$!
           sleep 10
           
@@ -89,6 +92,9 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/develop' || github.event.inputs.environment == 'development'
     environment: development
+    env:
+      NAMESPACE: espresso-development
+      ENVIRONMENT: development
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -104,9 +110,9 @@ jobs:
           cd charts/postgesql
           helm dependency update
           helm upgrade --install espresso-db . \
-            --namespace espresso-development \
+            --namespace ${{ env.NAMESPACE }} \
             --create-namespace \
-            --set postgresql.image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --values values-${{ env.ENVIRONMENT }}.yaml \
             --set postgresql.password=${{ secrets.POSTGRES_PASSWORD_DEVELOPMENT }} \
             --set postgresql.user=${{ secrets.POSTGRES_USER_DEVELOPMENT }} \
             --set postgresql.db=${{ secrets.POSTGRES_DB_DEVELOPMENT }} \
@@ -115,6 +121,6 @@ jobs:
 
       - name: Verify Deployment
         run: |
-          kubectl get pods -n espresso-development
-          kubectl get services -n espresso-development
+          kubectl get pods -n ${{ env.NAMESPACE }}
+          kubectl get services -n ${{ env.NAMESPACE }}
           

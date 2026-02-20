@@ -1,0 +1,10 @@
+postgresql:
+  user: espresso_dev_user
+  password: null  # Set via --set
+  database: espresso_ml_development
+  persistence:
+    size: 10Gi
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
