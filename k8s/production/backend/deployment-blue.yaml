@@ -1,0 +1,107 @@
+# Backend Blue Deployment for Production Environment
+# Feature: Automatic Deployment (Blue-Green Strategy)
+# Environment: Production - Blue
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: espresso-api-blue
+  namespace: espresso-production
+  labels:
+    app: espresso-api
+    env: production
+    color: blue
+    version: v1
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: espresso-api
+      env: production
+      color: blue
+  template:
+    metadata:
+      labels:
+        app: espresso-api
+        env: production
+        color: blue
+        version: v1
+    spec:
+      containers:
+      - name: espresso-api
+        image: ghcr.io/nicholasdipinto/espresso-ml/backend:main-production
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3001
+          name: http
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3001"
+        - name: DB_HOST
+          value: "postgres-service"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: database
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: password
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secret
+              key: jwt-secret
+        - name: CORS_ORIGIN
+          value: "https://espresso-ml.com"
+        - name: DEPLOYMENT_COLOR
+          value: "blue"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+      imagePullSecrets:
+      - name: ghcr-secret
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30

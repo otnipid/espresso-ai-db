@@ -1,0 +1,23 @@
+# PostgreSQL Service for Staging Environment
+# Feature: Automatic Deployment
+# Environment: Staging
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: espresso-staging
+  labels:
+    app: postgres
+    env: staging
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+    env: staging
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+    protocol: TCP
+  sessionAffinity: None

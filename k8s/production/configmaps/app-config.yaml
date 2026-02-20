@@ -1,0 +1,32 @@
+# Application Configuration for Production Environment
+# Feature: Automatic Deployment
+# Environment: Production
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: espresso-production
+  labels:
+    app: espresso-api
+    env: production
+data:
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  CORS_ORIGIN: "https://espresso-ml.com"
+  API_BASE_URL: "https://api.espresso-ml.com"
+  FRONTEND_URL: "https://espresso-ml.com"
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_SSL_MODE: "require"
+  DB_POOL_MIN: "5"
+  DB_POOL_MAX: "20"
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  SESSION_SECRET: "production-session-secret"
+  RATE_LIMIT_WINDOW_MS: "900000"
+  RATE_LIMIT_MAX_REQUESTS: "1000"
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "9090"
+  ENABLE_CACHE: "true"
+  CACHE_TTL: "3600"

@@ -1,0 +1,23 @@
+# PostgreSQL Service for Production Environment
+# Feature: Automatic Deployment
+# Environment: Production
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: espresso-production
+  labels:
+    app: postgres
+    env: production
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+    env: production
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+    protocol: TCP
+  sessionAffinity: None
