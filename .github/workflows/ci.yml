@@ -1,4 +1,4 @@
-name: CI Pipeline
+name: Infrastructure CI Pipeline
 
 on:
   push:
@@ -81,26 +81,69 @@ jobs:
         with:
           version: ${{ matrix.k8s-version }}
 
-      - name: Setup Minikube
-        run: |
-          curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-          sudo install minikube-linux-amd64 /usr/local/bin/minikube
-          minikube start --kubernetes-version=${{ matrix.k8s-version }}
-          minikube addons enable ingress
+      - name: Setup Kind (Kubernetes in Docker)
+        uses: helm/kind-action@v1.8.0
+        with:
+          cluster_name: kind-${{ matrix.k8s-version }}
+          version: ${{ matrix.k8s-version }}
 
-      - name: Test PostgreSQL Chart
+      - name: Install Chart Dependencies
         run: |
           cd charts/postgesql
           helm dependency update
-          helm install test-postgres . --wait --timeout=10m
-          kubectl get pods
-          kubectl describe pod -l app.kubernetes.io/instance=test-postgres
 
-      - name: Cleanup
+      - name: Lint Chart
+        run: |
+          cd charts/postgesql
+          helm lint .
+
+      - name: Install Chart
+        run: |
+          cd charts/postgesql
+          helm install test-postgres . \
+            --wait \
+            --timeout=10m \
+            --set postgresql.password=testpass \
+            --set postgresql.user=testuser \
+            --set postgresql.db=testdb
+
+      - name: Test Chart Installation
+        run: |
+          # Wait for pods to be ready
+          kubectl wait --for=condition=ready pod \
+            -l app.kubernetes.io/instance=test-postgres \
+            --timeout=300s
+          
+          # Check pod status
+          kubectl get pods -o wide
+          kubectl get services
+          kubectl get pvc
+
+      - name: Run Integration Tests
+        run: |
+          # Port forward and test database connection
+          kubectl port-forward svc/test-postgres-postgres 5432:5432 &
+          PF_PID=$!
+          sleep 10
+          
+          # Test database connection
+          PGPASSWORD=testpass psql -h localhost -U testuser -d testdb -c "SELECT version();"
+          
+          # Test schema creation
+          PGPASSWORD=testpass psql -h localhost -U testuser -d testdb -c "\dt"
+          
+          # Cleanup
+          kill $PF_PID
+
+      - name: Uninstall Chart
         if: always()
         run: |
           helm uninstall test-postgres || true
-          minikube delete || true
+
+      - name: Cleanup Kind Cluster
+        if: always()
+        run: |
+          kind delete cluster kind-${{ matrix.k8s-version }} || true
 
   security-scan:
     name: Security Scanning
@@ -124,7 +167,7 @@ jobs:
           sarif_file: 'trivy-results.sarif'
 
   build-and-push:
-    name: Build and Push Docker Images
+    name: Build and Push Infrastructure Images
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     needs: [helm-test, security-scan]
