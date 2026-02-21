@@ -7,3 +7,4 @@ postgresql:
   user: postgres
   password: null
   db: espresso_ml
+  storage: 1Gi
