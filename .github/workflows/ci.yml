@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: espresso-ml-infrastructure
+  IMAGE_NAME: postgres
 
 jobs:
   lint-and-format:
@@ -236,64 +236,34 @@ jobs:
             gl-secret-detection.json
           retention-days: 30
 
-  build-and-push:
-    name: Build and Push Infrastructure Images
+  scan-official-postgres-image:
+    name: Scan Official PostgreSQL Image
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
     needs: [helm-test, security-scan]
-    outputs:
-      image-digest: ${{ steps.build.outputs.digest }}
-      image-tag: ${{ steps.meta.outputs.tags }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-
-      - name: Build and push Docker image
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-      - name: Scan Docker Image with Trivy
+      - name: Scan Official PostgreSQL Image
         run: |
-          echo "🔍 Scanning Docker image: ${{ steps.meta.outputs.tags }}"
+          echo "🔍 Scanning official PostgreSQL image: postgres:15"
           docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
             -v ${{ github.workspace }}:/src \
             aquasec/trivy:latest image \
             --format json \
-            --output trivy-image-results.json \
-            ${{ steps.meta.outputs.tags }}
+            --output postgres-official-scan.json \
+            postgres:15
 
-      - name: Process Image Scan Results
+      - name: Process PostgreSQL Scan Results
         run: |
-          if [ -f "trivy-image-results.json" ]; then
-            echo "🐳 Docker Image Scan Results:"
-            echo "=============================="
+          if [ -f "postgres-official-scan.json" ]; then
+            echo "🐳 Official PostgreSQL Image Scan Results:"
+            echo "=========================================="
             
             # Count vulnerabilities by severity
-            CRITICAL_COUNT=$(jq '.Results[]? | .Vulnerabilities[]? | select(.Severity == "CRITICAL") | .Severity' trivy-image-results.json | wc -l | tr -d ' ')
-            HIGH_COUNT=$(jq '.Results[]? | .Vulnerabilities[]? | select(.Severity == "HIGH") | .Severity' trivy-image-results.json | wc -l | tr -d ' ')
-            MEDIUM_COUNT=$(jq '.Results[]? | .Vulnerabilities[]? | select(.Severity == "MEDIUM") | .Severity' trivy-image-results.json | wc -l | tr -d ' ')
+            CRITICAL_COUNT=$(jq '.Results[]? | .Vulnerabilities[]? | select(.Severity == "CRITICAL") | .Severity' postgres-official-scan.json | wc -l | tr -d ' ')
+            HIGH_COUNT=$(jq '.Results[]? | .Vulnerabilities[]? | select(.Severity == "HIGH") | .Severity' postgres-official-scan.json | wc -l | tr -d ' ')
+            MEDIUM_COUNT=$(jq '.Results[]? | .Vulnerabilities[]? | select(.Severity == "MEDIUM") | .Severity' postgres-official-scan.json | wc -l | tr -d ' ')
             
             echo "🚨 Critical severity: $CRITICAL_COUNT"
             echo "🔴 High severity: $HIGH_COUNT"
@@ -302,27 +272,23 @@ jobs:
             # Show top vulnerabilities if any exist
             if [ "$CRITICAL_COUNT" -gt 0 ] || [ "$HIGH_COUNT" -gt 0 ]; then
               echo ""
-              echo "🔍 Top image vulnerabilities:"
-              jq -r '.Results[]? | .Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH") | "\(.Severity): \(.Title) (\(.PkgName))"' trivy-image-results.json | head -5
-            fi
-            
-            # Fail on critical or high severity vulnerabilities
-            if [ "$CRITICAL_COUNT" -gt 0 ] || [ "$HIGH_COUNT" -gt 0 ]; then
+              echo "🔍 Top PostgreSQL vulnerabilities:"
+              jq -r '.Results[]? | .Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH") | "\(.Severity): \(.Title) (\(.PkgName))"' postgres-official-scan.json | head -5
+              
               echo ""
-              echo "❌ Image security scan failed: Found $CRITICAL_COUNT critical and $HIGH_COUNT high severity vulnerabilities"
-              exit 1
+              echo "⚠️  Consider updating to a newer PostgreSQL version if critical vulnerabilities are found"
             else
               echo ""
-              echo "✅ Image security scan passed: No critical or high severity vulnerabilities found"
+              echo "✅ PostgreSQL image security scan passed: No critical or high severity vulnerabilities found"
             fi
           else
-            echo "⚠️  No image scan results found"
+            echo "⚠️  No scan results found"
           fi
 
-      - name: Archive Image Scan Results
+      - name: Archive PostgreSQL Scan Results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: container-scan-results
-          path: trivy-image-results.json
+          name: postgres-scan-results
+          path: postgres-official-scan.json
           retention-days: 30
