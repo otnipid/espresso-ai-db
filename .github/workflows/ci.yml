@@ -36,10 +36,19 @@ jobs:
           echo "Linting with production values..."
           helm lint charts/postgesql/ -f charts/postgesql/values-production.yaml
 
+      - name: Validate Helm Templates
+        run: |
+          # Render and validate templates with different values
+          echo "Validating templates with development values..."
+          helm template espresso-db charts/postgesql/ -f charts/postgesql/values-development.yaml
+          
+          echo "Validating templates with production values..."
+          helm template espresso-db charts/postgesql/ -f charts/postgesql/values-production.yaml
+
       - name: Validate YAML
         uses: ibiqlik/action-yamllint@v3
         with:
-          file_or_dir: charts/
+          file_or_dir: charts/postgesql/values*.yaml
           config_file: .github/.yamllint.yml
 
   schema-validation:
