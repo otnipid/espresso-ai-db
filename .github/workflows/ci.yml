@@ -92,7 +92,7 @@ jobs:
       - name: Setup Kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: 'v1.28.0'
+          version: 'v1.31.0'
 
       - name: Setup Kind (Kubernetes in Docker)
         uses: helm/kind-action@v1.8.0
