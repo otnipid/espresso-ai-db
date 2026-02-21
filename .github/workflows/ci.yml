@@ -123,7 +123,7 @@ jobs:
         run: |
           # Wait for pods to be ready
           kubectl wait --for=condition=ready pod \
-            -l app.kubernetes.io/instance=test-postgres-postgres \
+            -l app=test-postgres-postgres \
             --timeout=300s
           
           # Check pod status
