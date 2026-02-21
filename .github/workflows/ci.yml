@@ -170,13 +170,71 @@ jobs:
         with:
           scan-type: 'config'
           scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+          format: 'json'
+          output: 'trivy-results.json'
 
-      - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v2
+      - name: Run Gitleaks (Secret Scanning)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Semgrep (Static Analysis)
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/src" \
+            -e SEMGREP_APP_TOKEN="${{ secrets.SEMGREP_APP_TOKEN }}" \
+            semgrep/semgrep semgrep ci
+
+      - name: Process Trivy scan results
+        run: |
+          echo "🔍 Security scan results:"
+          echo "========================"
+          
+          # Check if there are any vulnerabilities
+          if [ -f "trivy-results.json" ]; then
+            # Count vulnerabilities by severity using JSON format
+            HIGH_COUNT=$(jq '.Results[] | select(.Vulnerabilities[]) | .Vulnerabilities[] | select(.Severity == "HIGH") | .Severity' trivy-results.json | wc -l | tr -d ' ')
+            MEDIUM_COUNT=$(jq '.Results[] | select(.Vulnerabilities[]) | .Vulnerabilities[] | select(.Severity == "MEDIUM") | .Severity' trivy-results.json | wc -l | tr -d ' ')
+            LOW_COUNT=$(jq '.Results[] | select(.Vulnerabilities[]) | .Vulnerabilities[] | select(.Severity == "LOW") | .Severity' trivy-results.json | wc -l | tr -d ' ')
+            CRITICAL_COUNT=$(jq '.Results[] | select(.Vulnerabilities[]) | .Vulnerabilities[] | select(.Severity == "CRITICAL") | .Severity' trivy-results.json | wc -l | tr -d ' ')
+            
+            echo "🚨 Critical severity: $CRITICAL_COUNT"
+            echo "🚨 High severity: $HIGH_COUNT"
+            echo "⚠️  Medium severity: $MEDIUM_COUNT" 
+            echo "ℹ️  Low severity: $LOW_COUNT"
+            
+            # Show top 5 vulnerabilities if any exist
+            if [ "$CRITICAL_COUNT" -gt 0 ] || [ "$HIGH_COUNT" -gt 0 ]; then
+              echo ""
+              echo "🔍 Top vulnerabilities:"
+              jq -r '.Results[] | select(.Vulnerabilities[]) | .Vulnerabilities[] | select(.Severity == "CRITICAL" or .Severity == "HIGH") | "\(.Severity): \(.Title) (\(.PkgName))"' trivy-results.json | head -5
+            fi
+            
+            # Fail on critical or high severity vulnerabilities
+            if [ "$CRITICAL_COUNT" -gt 0 ] || [ "$HIGH_COUNT" -gt 0 ]; then
+              echo ""
+              echo "❌ Security scan failed: Found $CRITICAL_COUNT critical and $HIGH_COUNT high severity vulnerabilities"
+              exit 1
+            else
+              echo ""
+              echo "✅ Security scan passed: No critical or high severity vulnerabilities found"
+            fi
+          else
+            echo "⚠️  No scan results found"
+          fi
+
+      - name: Archive scan results
+        uses: actions/upload-artifact@v4
+        if: always()
         with:
-          sarif_file: 'trivy-results.sarif'
+          name: security-scan-results
+          path: |
+            trivy-results.json
+            semgrep.sarif
+            gl-secret-detection.json
+          retention-days: 30
 
   build-and-push:
     name: Build and Push Infrastructure Images
@@ -205,20 +263,66 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+
+      - name: Scan Docker Image with Trivy
+        run: |
+          echo "🔍 Scanning Docker image: ${{ steps.meta.outputs.tags }}"
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v ${{ github.workspace }}:/src \
+            aquasec/trivy:latest image \
+            --format json \
+            --output trivy-image-results.json \
+            ${{ steps.meta.outputs.tags }}
+
+      - name: Process Image Scan Results
+        run: |
+          if [ -f "trivy-image-results.json" ]; then
+            echo "🐳 Docker Image Scan Results:"
+            echo "=============================="
+            
+            # Count vulnerabilities by severity
+            CRITICAL_COUNT=$(jq '.Results[]? | .Vulnerabilities[]? | select(.Severity == "CRITICAL") | .Severity' trivy-image-results.json | wc -l | tr -d ' ')
+            HIGH_COUNT=$(jq '.Results[]? | .Vulnerabilities[]? | select(.Severity == "HIGH") | .Severity' trivy-image-results.json | wc -l | tr -d ' ')
+            MEDIUM_COUNT=$(jq '.Results[]? | .Vulnerabilities[]? | select(.Severity == "MEDIUM") | .Severity' trivy-image-results.json | wc -l | tr -d ' ')
+            
+            echo "🚨 Critical severity: $CRITICAL_COUNT"
+            echo "🔴 High severity: $HIGH_COUNT"
+            echo "🟡 Medium severity: $MEDIUM_COUNT"
+            
+            # Show top vulnerabilities if any exist
+            if [ "$CRITICAL_COUNT" -gt 0 ] || [ "$HIGH_COUNT" -gt 0 ]; then
+              echo ""
+              echo "🔍 Top image vulnerabilities:"
+              jq -r '.Results[]? | .Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH") | "\(.Severity): \(.Title) (\(.PkgName))"' trivy-image-results.json | head -5
+            fi
+            
+            # Fail on critical or high severity vulnerabilities
+            if [ "$CRITICAL_COUNT" -gt 0 ] || [ "$HIGH_COUNT" -gt 0 ]; then
+              echo ""
+              echo "❌ Image security scan failed: Found $CRITICAL_COUNT critical and $HIGH_COUNT high severity vulnerabilities"
+              exit 1
+            else
+              echo ""
+              echo "✅ Image security scan passed: No critical or high severity vulnerabilities found"
+            fi
+          else
+            echo "⚠️  No image scan results found"
+          fi
+
+      - name: Archive Image Scan Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: container-scan-results
+          path: trivy-image-results.json
+          retention-days: 30
