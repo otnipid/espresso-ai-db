@@ -79,7 +79,7 @@ jobs:
     needs: schema-validation
     strategy:
       matrix:
-        k8s-version: ['1.27.0', '1.28.0', '1.29.0']
+        k8s-version: ['1.27.0', '1.28.0', '1.30.0']
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
