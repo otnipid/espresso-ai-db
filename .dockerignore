@@ -1,0 +1,67 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+docs/
+*.md
+
+# GitHub Actions
+.github/
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Node.js (if present)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python (if present)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# CI/CD artifacts
+*.tar.gz
+*.zip
+
+# Kubernetes manifests (not needed in container)
+k8s/
+
+# Helm chart files (already copied)
+charts/postgesql/templates/
+charts/postgesql/Chart.yaml
+charts/postgesql/values*.yaml
+
+# Only keep schema files
+!charts/postgesql/schema/
