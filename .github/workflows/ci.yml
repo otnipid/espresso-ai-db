@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: postgres
+  IMAGE_NAME: espresso-ml-postgres
 
 jobs:
   lint-and-format:
@@ -64,13 +64,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql postgresql-contrib
           sudo systemctl start postgresql
-          sudo -u postgres psql -c "CREATE USER test WITH SUPERUSER PASSWORD 'test';"
+          sudo -u postgres psql -c "CREATE USER test WITH SUPERUSER PASSWORD '${{ secrets.CI_TEST_PASSWORD }}';"
           sudo -u postgres createdb -O test testdb
 
       - name: Validate Schema
         run: |
           cd charts/postgesql/schema
-          PGPASSWORD=test psql -h localhost -U test -d testdb -f 00-schema.sql
+          PGPASSWORD=${{ secrets.CI_TEST_PASSWORD }} psql -h localhost -U test -d testdb -f 00-schema.sql
           echo "Schema validation completed successfully"
 
   helm-test:
@@ -115,9 +115,9 @@ jobs:
           helm install test-postgres . \
             --wait \
             --timeout=10m \
-            --set postgresql.password=testpass \
-            --set postgresql.user=testuser \
-            --set postgresql.db=testdb
+            --set postgresql.password=${{ secrets.CI_TEST_PASSWORD }} \
+            --set postgresql.user=${{ secrets.CI_TEST_USER }} \
+            --set postgresql.db=${{ secrets.CI_TEST_DB }}
 
       - name: Test Chart Installation
         run: |
@@ -139,10 +139,10 @@ jobs:
           sleep 10
           
           # Test database connection
-          PGPASSWORD=testpass psql -h localhost -U testuser -d testdb -c "SELECT version();"
+          PGPASSWORD=${{ secrets.CI_TEST_PASSWORD }} psql -h localhost -U ${{ secrets.CI_TEST_USER }} -d ${{ secrets.CI_TEST_DB }} -c "SELECT version();"
           
           # Test schema creation
-          PGPASSWORD=testpass psql -h localhost -U testuser -d testdb -c "\dt"
+          PGPASSWORD=${{ secrets.CI_TEST_PASSWORD }} psql -h localhost -U ${{ secrets.CI_TEST_USER }} -d ${{ secrets.CI_TEST_DB }} -c "\dt"
           
           # Cleanup
           kill $PF_PID
@@ -236,34 +236,71 @@ jobs:
             gl-secret-detection.json
           retention-days: 30
 
-  scan-official-postgres-image:
-    name: Scan Official PostgreSQL Image
+  build-and-push:
+    name: Build and Push Custom PostgreSQL Image
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
     needs: [helm-test, security-scan]
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.tags }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Scan Official PostgreSQL Image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan Custom Docker Image with Trivy
         run: |
-          echo "🔍 Scanning official PostgreSQL image: postgres:15"
+          echo "🔍 Scanning custom Espresso ML PostgreSQL image: ${{ steps.meta.outputs.tags }}"
           docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
             -v ${{ github.workspace }}:/src \
             aquasec/trivy:latest image \
             --format json \
-            --output postgres-official-scan.json \
-            postgres:15
+            --output trivy-custom-image-results.json \
+            ${{ steps.meta.outputs.tags }}
 
-      - name: Process PostgreSQL Scan Results
+      - name: Process Custom Image Scan Results
         run: |
-          if [ -f "postgres-official-scan.json" ]; then
-            echo "🐳 Official PostgreSQL Image Scan Results:"
-            echo "=========================================="
+          if [ -f "trivy-custom-image-results.json" ]; then
+            echo "🐳 Custom Espresso ML PostgreSQL Image Scan Results:"
+            echo "=================================================="
             
             # Count vulnerabilities by severity
-            CRITICAL_COUNT=$(jq '.Results[]? | .Vulnerabilities[]? | select(.Severity == "CRITICAL") | .Severity' postgres-official-scan.json | wc -l | tr -d ' ')
-            HIGH_COUNT=$(jq '.Results[]? | .Vulnerabilities[]? | select(.Severity == "HIGH") | .Severity' postgres-official-scan.json | wc -l | tr -d ' ')
-            MEDIUM_COUNT=$(jq '.Results[]? | .Vulnerabilities[]? | select(.Severity == "MEDIUM") | .Severity' postgres-official-scan.json | wc -l | tr -d ' ')
+            CRITICAL_COUNT=$(jq '.Results[]? | .Vulnerabilities[]? | select(.Severity == "CRITICAL") | .Severity' trivy-custom-image-results.json | wc -l | tr -d ' ')
+            HIGH_COUNT=$(jq '.Results[]? | .Vulnerabilities[]? | select(.Severity == "HIGH") | .Severity' trivy-custom-image-results.json | wc -l | tr -d ' ')
+            MEDIUM_COUNT=$(jq '.Results[]? | .Vulnerabilities[]? | select(.Severity == "MEDIUM") | .Severity' trivy-custom-image-results.json | wc -l | tr -d ' ')
             
             echo "🚨 Critical severity: $CRITICAL_COUNT"
             echo "🔴 High severity: $HIGH_COUNT"
@@ -272,23 +309,23 @@ jobs:
             # Show top vulnerabilities if any exist
             if [ "$CRITICAL_COUNT" -gt 0 ] || [ "$HIGH_COUNT" -gt 0 ]; then
               echo ""
-              echo "🔍 Top PostgreSQL vulnerabilities:"
-              jq -r '.Results[]? | .Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH") | "\(.Severity): \(.Title) (\(.PkgName))"' postgres-official-scan.json | head -5
+              echo "🔍 Top custom image vulnerabilities:"
+              jq -r '.Results[]? | .Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH") | "\(.Severity): \(.Title) (\(.PkgName))"' trivy-custom-image-results.json | head -5
               
               echo ""
-              echo "⚠️  Consider updating to a newer PostgreSQL version if critical vulnerabilities are found"
+              echo "⚠️  Consider updating base PostgreSQL version if critical vulnerabilities are found"
             else
               echo ""
-              echo "✅ PostgreSQL image security scan passed: No critical or high severity vulnerabilities found"
+              echo "✅ Custom image security scan passed: No critical or high severity vulnerabilities found"
             fi
           else
-            echo "⚠️  No scan results found"
+            echo "⚠️  No custom image scan results found"
           fi
 
-      - name: Archive PostgreSQL Scan Results
+      - name: Archive Custom Image Scan Results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: postgres-scan-results
-          path: postgres-official-scan.json
+          name: custom-postgres-scan-results
+          path: trivy-custom-image-results.json
           retention-days: 30

@@ -2,7 +2,9 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:13
+    image: ghcr.io/espresso-ml/espresso-ml-postgres:latest
+    # Fallback to official image if custom image is not available
+    # image: postgres:15
     container_name: espresso_ml_db
     env_file:
       - ./backend/.env
@@ -10,6 +12,7 @@ services:
       POSTGRES_USER: ${DB_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-espresso_ml}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
     ports:
       - "5432:5432"
     volumes:
