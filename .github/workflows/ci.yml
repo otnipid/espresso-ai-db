@@ -199,13 +199,16 @@ jobs:
       - name: Scan Custom Docker Image with Trivy
         run: |
           echo "🔍 Scanning custom Espresso ML PostgreSQL image: ${{ steps.meta.outputs.tags }}"
+          # Use the first tag for scanning (Trivy can only scan one tag at a time)
+          FIRST_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n 1)
+          echo "Scanning tag: $FIRST_TAG"
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v ${{ github.workspace }}:/src \
             aquasec/trivy:latest image \
             --format json \
             --output trivy-custom-image-results.json \
-            ${{ steps.meta.outputs.tags }}
+            $FIRST_TAG
 
       - name: Process Custom Image Scan Results
         run: |
