@@ -156,7 +156,7 @@ jobs:
     name: Build and Push Custom PostgreSQL Image
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
-    needs: [helm-test, security-scan]
+    needs: [security-scan]
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}
       image-tag: ${{ steps.meta.outputs.tags }}
