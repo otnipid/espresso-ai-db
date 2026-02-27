@@ -15,7 +15,7 @@ jobs:
     strategy:
       matrix:
         chart: [postgesql]
-        k8s-version: ['1.27.0', '1.28.0', '1.30.0']
+        k8s-version: ['1.31.0', '1.30.0', '1.28.0']
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,9 +26,9 @@ jobs:
           version: 'v3.12.0'
 
       - name: Setup Kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
         with:
-          version: ${{ matrix.k8s-version }}
+          version: '${{ matrix.k8s-version }}'
 
       - name: Setup Kind (Kubernetes in Docker)
         uses: helm/kind-action@v1.8.0
