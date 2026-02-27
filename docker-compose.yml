@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   postgres:
-    image: ghcr.io/espresso-ml/espresso-ml-postgres:latest
+    image: ghcr.io/otnipid/espresso-ml-postgres:latest
     # Fallback to official image if custom image is not available
     # image: postgres:15
     container_name: espresso_ml_db
