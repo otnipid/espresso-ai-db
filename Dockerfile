@@ -22,16 +22,6 @@ RUN chmod +x /docker-entrypoint-initdb.d/99-custom-setup.sh
 COPY healthcheck.sh /healthcheck.sh
 RUN chmod +x /healthcheck.sh
 
-# Create non-root user and set proper permissions
-RUN groupadd -r espresso && \
-    useradd -r -g espresso espresso && \
-    mkdir -p /var/lib/postgresql/data && \
-    chown -R espresso:espresso /var/lib/postgresql/data && \
-    chmod -R 755 /var/lib/postgresql/data
-
-# Switch to non-root user
-USER espresso
-
 # Set healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD /healthcheck.sh
