@@ -18,38 +18,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Helm
-        uses: azure/setup-helm@v3
-        with:
-          version: 'v3.12.0'
-
-      - name: Helm Lint
+      - name: Validate Dockerfile
         run: |
-          # Lint base chart
-          echo "Linting base chart: charts/postgesql/"
-          helm lint charts/postgesql/
-          
-          # Lint with environment-specific values
-          echo "Linting with development values..."
-          helm lint charts/postgesql/ -f charts/postgesql/values-development.yaml
-          
-          echo "Linting with production values..."
-          helm lint charts/postgesql/ -f charts/postgesql/values-production.yaml
+          echo "Validating Dockerfile..."
+          docker build --no-cache --dry-run .
 
-      - name: Validate Helm Templates
+      - name: Validate docker-compose.yml
         run: |
-          # Render and validate templates with different values
-          echo "Validating templates with development values..."
-          helm template espresso-db charts/postgesql/ -f charts/postgesql/values-development.yaml
-          
-          echo "Validating templates with production values..."
-          helm template espresso-db charts/postgesql/ -f charts/postgesql/values-production.yaml
+          echo "Validating docker-compose.yml..."
+          docker-compose config
 
-      - name: Validate YAML
-        uses: ibiqlik/action-yamllint@v3
-        with:
-          file_or_dir: charts/postgesql/values*.yaml
-          config_file: .github/.yamllint.yml
 
   schema-validation:
     name: Validate Database Schema
@@ -69,7 +47,7 @@ jobs:
 
       - name: Validate Schema
         run: |
-          cd charts/postgesql/schema
+          cd schema
           PGPASSWORD=${{ secrets.CI_TEST_PASSWORD }} psql -h localhost -U test -d testdb -f 00-schema.sql
           echo "Schema validation completed successfully"
 

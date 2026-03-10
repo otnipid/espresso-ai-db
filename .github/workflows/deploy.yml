@@ -1,15 +1,15 @@
-name: Deploy Infrastructure
+name: Build and Publish Docker Image
 
 on:
   workflow_run:
     workflows: ["Infrastructure CI Pipeline"]
     types:
       - completed
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Deployment environment'
+        description: 'Target environment'
         required: true
         default: 'production'
         type: choice
@@ -19,66 +19,75 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: espresso-ml-infrastructure
+  IMAGE_NAME: espresso-ml-postgres
 
 jobs:
-  deploy-production:
-    name: Deploy to Production
+  build-and-push:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'production'
-    environment: production
-    env:
-      NAMESPACE: espresso-production
-      ENVIRONMENT: production
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure kubectl
-        uses: azure/setup-kubectl@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
         with:
-          version: 'v1.31.0'
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set kubectl context
-        uses: azure/k8s-set-context@v3
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBE_CONFIG_PROD }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Deploy PostgreSQL
-        run: |
-          cd charts/postgesql
-          helm dependency update
-          helm upgrade --install espresso-db . \
-            --namespace ${{ env.NAMESPACE }} \
-            --create-namespace \
-            --values values-${{ env.ENVIRONMENT }}.yaml \
-            --set postgresql.password=${{ secrets.POSTGRES_PASSWORD_PROD }} \
-            --set postgresql.user=${{ secrets.POSTGRES_USER_PROD }} \
-            --set postgresql.db=${{ secrets.POSTGRES_DB_PROD }} \
-            --wait \
-            --timeout=10m
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Verify Deployment
-        run: |
-          kubectl get pods -n ${{ env.NAMESPACE }}
-          kubectl get services -n ${{ env.NAMESPACE }}
-          kubectl get pvc -n ${{ env.NAMESPACE }}
-          
-      - name: Run Health Checks
-        run: |
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=espresso-db -n ${{ env.NAMESPACE }} --timeout=300s
-          
-          # Test database connection
-          kubectl port-forward -n ${{ env.NAMESPACE }} svc/espresso-db-postgres 5432:5432 &
-          PF_PID=$!
-          sleep 10
-          
-          # Test with appropriate credentials
-          PGPASSWORD=${{ secrets.POSTGRES_PASSWORD_PROD }} psql -h localhost -U ${{ secrets.POSTGRES_USER_PROD }} -d ${{ secrets.POSTGRES_DB_PROD }} -c "SELECT version();"
-          kill $PF_PID
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+          format: spdx-json
+          output-file: sbom.spdx.json
 
-      - name: Update Deployment Status
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json
+
+      - name: Run security scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Update deployment status
         uses: actions/github-script@v7
         with:
           script: |
@@ -88,49 +97,64 @@ jobs:
               sha: context.sha,
               state: 'success',
               target_url: 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}',
-              description: 'PostgreSQL production deployment successful',
-              context: 'infrastructure/deployment'
+              description: 'Docker image build and push successful',
+              context: 'docker/build'
             });
 
-  deploy-development:
-    name: Deploy to Development
+  test-image:
+    name: Test Docker Image
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop' || github.event.inputs.environment == 'development'
-    environment: development
-    env:
-      NAMESPACE: espresso-development
-      ENVIRONMENT: development
+    needs: build-and-push
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure kubectl
-        uses: azure/setup-kubectl@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
         with:
-          version: 'v1.31.0'
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set kubectl context
-        uses: azure/k8s-set-context@v3
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBE_CONFIG_DEVELOPMENT }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
 
-      - name: Deploy PostgreSQL
+      - name: Test database initialization
         run: |
-          cd charts/postgesql
-          helm dependency update
-          helm upgrade --install espresso-db . \
-            --namespace ${{ env.NAMESPACE }} \
-            --create-namespace \
-            --values values-${{ env.ENVIRONMENT }}.yaml \
-            --set postgresql.password=${{ secrets.POSTGRES_PASSWORD_DEVELOPMENT }} \
-            --set postgresql.user=${{ secrets.POSTGRES_USER_DEVELOPMENT }} \
-            --set postgresql.db=${{ secrets.POSTGRES_DB_DEVELOPMENT }} \
-            --wait \
-            --timeout=10m
+          # Start the database container
+          docker run -d \
+            --name test-postgres \
+            -e POSTGRES_PASSWORD=testpassword \
+            -e POSTGRES_DB=testdb \
+            -p 5432:5432 \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
 
-      - name: Verify Deployment
+          # Wait for database to be ready
+          timeout 60 bash -c 'until docker exec test-postgres pg_isready -U postgres; do sleep 2; done'
+
+          # Test schema initialization
+          docker exec test-postgres psql -U postgres -d testdb -c "\dt"
+
+          # Test specific tables exist
+          docker exec test-postgres psql -U postgres -d testdb -c "SELECT COUNT(*) FROM beans;"
+
+          # Test health check
+          docker exec test-postgres /healthcheck.sh
+
+          echo "✅ All tests passed!"
+
+      - name: Cleanup
+        if: always()
         run: |
-          kubectl get pods -n ${{ env.NAMESPACE }}
-          kubectl get services -n ${{ env.NAMESPACE }}
+          docker stop test-postgres
+          docker rm test-postgres
           
