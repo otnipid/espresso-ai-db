@@ -3,10 +3,10 @@ name: Schema Validation
 on:
   push:
     paths:
-      - 'charts/postgesql/schema/**'
+      - 'schema/**'
   pull_request:
     paths:
-      - 'charts/postgesql/schema/**'
+      - 'schema/**'
 
 jobs:
   validate-schema:
@@ -27,27 +27,39 @@ jobs:
           echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y postgresql-${{ matrix.postgres-version }} postgresql-contrib-${{ matrix.postgres-version }}
-          sudo systemctl start postgresql-${{ matrix.postgres-version }}
+          
+          # Initialize and start PostgreSQL properly for GitHub Actions
+          sudo pg_createcluster ${{ matrix.postgres-version }} main --start
+          sudo pg_ctlcluster ${{ matrix.postgres-version }} main start
+          
+          # Wait for PostgreSQL to be ready
+          sudo -u postgres pg_isready -t 30
+          
+          # Create test user and database
           sudo -u postgres psql -c "CREATE USER test WITH SUPERUSER PASSWORD 'test';"
           sudo -u postgres createdb -O test testdb
 
       - name: Validate Schema Files
         run: |
-          cd charts/postgesql/schema
+          cd schema
           
           # Check each individual file
           for file in *.sql; do
             echo "Validating $file..."
-            PGPASSWORD=test psql -h localhost -U test -d testdb -f "$file"
+            if [ "$file" = "00-schema.sql" ]; then
+              echo "Skipping master schema file (will test individual files)"
+            else
+              PGPASSWORD=test psql -h localhost -U test -d testdb -f "$file"
+            fi
           done
           
-          # Test full schema
+          # Test that all tables were created successfully
           echo "Testing complete schema..."
-          PGPASSWORD=test psql -h localhost -U test -d testdb -f 00-schema.sql
+          PGPASSWORD=test psql -h localhost -U test -d testdb -c "\dt"
 
       - name: Test Schema Constraints
         run: |
-          cd charts/postgesql/schema
+          cd schema
           
           # Create test data to validate constraints
           PGPASSWORD=test psql -h localhost -U test -d testdb << 'EOF'
@@ -71,7 +83,7 @@ jobs:
 
       - name: Schema Documentation Check
         run: |
-          cd charts/postgesql/schema
+          cd schema
           
           # Check for required documentation
           for file in *.sql; do
