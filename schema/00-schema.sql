@@ -5,6 +5,7 @@
 -- Dependencies: None
 -- Order: Files are numbered to ensure proper dependency order
 -- Idempotent: Yes (all sub-files use IF NOT EXISTS)
+-- Updated: 2026-03-10 (CI fixes applied)
 
 -- Load extensions first
 \i 01-extensions.sql
