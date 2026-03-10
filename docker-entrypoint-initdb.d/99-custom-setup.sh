@@ -1,67 +1,53 @@
 #!/bin/bash
 set -e
 
-# Custom setup script that runs after all schema files are loaded
-# This ensures proper database initialization and creates sample data if needed
+# Custom setup script that runs after database initialization
+# This executes all schema files in the correct order
 
 echo "🔧 Running custom Espresso ML database setup..."
 
 # Wait for PostgreSQL to be ready
-until pg_isready -h localhost -p 5432 -U "$POSTGRES_USER"; do
+until pg_isready -U "$POSTGRES_USER"; do
     echo "⏳ Waiting for PostgreSQL to be ready..."
     sleep 2
 done
 
-# Connect to the database and run additional setup
+# Execute schema files in order
+echo "📋 Loading Espresso ML database schemas..."
+cd /docker-entrypoint-initdb.d/schema
+
+# First, execute the master schema file that includes all others
+if [ -f "00-schema.sql" ]; then
+    echo "🔧 Executing 00-schema.sql (master schema file)..."
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" < 00-schema.sql
+else
+    # Fallback: execute individual files in order
+    for file in 01-*.sql 02-*.sql 03-*.sql 04-*.sql 05-*.sql 06-*.sql 07-*.sql 08-*.sql 09-*.sql 10-*.sql 11-*.sql 12-*.sql 13-*.sql 14-*.sql; do
+        if [ -f "$file" ]; then
+            echo "🔧 Executing $file..."
+            psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" < "$file"
+        fi
+    done
+fi
+
+# Create additional views and functions
+echo "🔧 Creating views and functions..."
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    -- Create a view for active shots (useful for analytics)
-    CREATE OR REPLACE VIEW active_shots AS
-    SELECT 
-        s.id,
-        s.user_id,
-        u.username,
-        b.name as bean_name,
-        s.rating,
-        s.created_at as shot_date
-    FROM shots s
-    JOIN users u ON s.user_id = u.id
-    JOIN beans b ON s.bean_id = b.id
-    WHERE s.rating IS NOT NULL
-    ORDER BY s.created_at DESC;
-
-    -- Create a function to get shot statistics
-    CREATE OR REPLACE FUNCTION get_shot_statistics(p_user_id UUID DEFAULT NULL)
-    RETURNS TABLE(
-        total_shots BIGINT,
-        avg_rating NUMERIC,
-        favorite_bean TEXT,
-        last_shot_date TIMESTAMP
-    ) AS \$\$
-    BEGIN
-        RETURN QUERY
-        SELECT 
-            COUNT(*)::BIGINT,
-            ROUND(AVG(s.rating), 2),
-            (SELECT b.name FROM shots s2 JOIN beans b ON s2.bean_id = b.id WHERE s2.user_id = COALESCE(p_user_id, s.user_id) GROUP BY b.name ORDER BY COUNT(*) DESC LIMIT 1),
-            MAX(s.created_at)
-        FROM shots s
-        WHERE (p_user_id IS NULL OR s.user_id = p_user_id);
-    END;
-    \$\$ LANGUAGE plpgsql;
-
     -- Grant necessary permissions
     GRANT USAGE ON SCHEMA public TO PUBLIC;
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO PUBLIC;
     GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO PUBLIC;
-    GRANT SELECT ON ALL VIEWS IN SCHEMA public TO PUBLIC;
 
-    -- Set default privileges for future objects
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO PUBLIC;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO PUBLIC;
-
+    -- Create a simple function to check database status
+    CREATE OR REPLACE FUNCTION database_status()
+    RETURNS TEXT AS \$\$
+    BEGIN
+        RETURN 'Espresso ML database is ready';
+    END;
+    \$\$ LANGUAGE plpgsql;
 EOSQL
 
-echo "✅ Custom Espresso ML database setup completed successfully!"
+echo "✅ Espresso ML database setup completed successfully!"
 
 # Create a marker file to indicate successful initialization
 touch /var/lib/postgresql/data/espresso-ml-initialized

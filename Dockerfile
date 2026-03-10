@@ -12,7 +12,7 @@ ENV POSTGRES_DB=espresso_ml \
     POSTGRES_INITDB_ARGS="--auth-host=scram-sha-256"
 
 # Copy schema files to the initialization directory
-COPY charts/postgesql/schema/ /docker-entrypoint-initdb.d/
+COPY schema/ /docker-entrypoint-initdb.d/schema/
 
 # Create a custom initialization script that sets up the database properly
 COPY docker-entrypoint-initdb.d/99-custom-setup.sh /docker-entrypoint-initdb.d/99-custom-setup.sh
