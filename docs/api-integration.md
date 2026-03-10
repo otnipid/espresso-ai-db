@@ -1,164 +1,101 @@
-# API Integration with PostgreSQL Helm Chart
+# Database Integration Guide
 
-This guide explains how to configure your API (in separate repositories) to consume new releases of the PostgreSQL Helm chart deployed from this infrastructure repository.
+This guide explains how to configure your API (in separate repositories) to connect to the Espresso ML PostgreSQL database.
 
 ## Overview
 
-The PostgreSQL infrastructure deploys a Helm chart that creates:
-- **Database Service**: `espresso-db-postgres.{namespace}.svc.cluster.local:5432`
-- **Persistent Storage**: PVC for data persistence
-- **Configuration**: Environment-specific secrets and settings
-- **Network Access**: ClusterIP service within the same namespace
+The Espresso ML database provides:
+- **Database Schema**: Complete espresso shot tracking and bean management
+- **Docker Image**: Pre-configured PostgreSQL with all schemas
+- **Environment Configuration**: Flexible connection settings for different environments
 
-## Service Discovery
+## Database Connection Configuration
 
-### Production Environment
-```
-Host: espresso-db-postgres.espresso-production.svc.cluster.local
-Port: 5432
-Namespace: espresso-production
+### Environment Variables
+
+Configure these environment variables in your application:
+
+#### Required Variables
+```bash
+DB_HOST=localhost              # Database host
+DB_PORT=5432                  # Database port
+DB_NAME=espresso_ml           # Database name
+DB_USER=postgres              # Database user
+DB_PASSWORD=your_password     # Database password
 ```
 
-### Development Environment
+#### Optional Variables
+```bash
+DB_SSL=false                  # Enable SSL (true/false)
+DB_POOL_MIN=2                 # Minimum connection pool size
+DB_POOL_MAX=10                # Maximum connection pool size
+DB_CONNECTION_TIMEOUT=30      # Connection timeout in seconds
+DB_STATEMENT_TIMEOUT=60       # Query timeout in seconds
 ```
-Host: espresso-db-postgres.espresso-development.svc.cluster.local
-Port: 5432
-Namespace: espresso-development
+
+#### Full Connection String
+```bash
+DB_URL=postgresql://postgres:your_password@localhost:5432/espresso_ml
 ```
 
 ## Integration Approaches
 
-### Option 1: Same Namespace Deployment (Recommended)
+### Option 1: Docker Compose (Recommended for Development)
 
-Deploy your API to the same namespace as the database for simplified networking.
-
-#### API Deployment Configuration
+Add the PostgreSQL service to your `docker-compose.yml`:
 
 ```yaml
-# api-deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: espresso-api
-  namespace: espresso-production  # Match database namespace
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: espresso-api
-  template:
-    metadata:
-      labels:
-        app: espresso-api
-    spec:
-      containers:
-      - name: api
-        image: your-registry/espresso-api:latest
-        env:
-        - name: DB_HOST
-          value: "espresso-db-postgres"  # Same namespace, use short name
-        - name: DB_PORT
-          value: "5432"
-        - name: DB_NAME
-          valueFrom:
-            secretKeyRef:
-              name: postgres-credentials
-              key: database
-        - name: DB_USER
-          valueFrom:
-            secretKeyRef:
-              name: postgres-credentials
-              key: username
-        - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: postgres-credentials
-              key: password
-        ports:
-        - containerPort: 3000
+version: '3.8'
+
+services:
+  postgres:
+    image: ghcr.io/otnipid/espresso-ml-postgres:develop
+    # Fallback to official image if custom image is not available
+    # image: postgres:15
+    container_name: espresso_ml_db
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-espresso_ml}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-espresso_ml}
+      DB_USER: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
 ```
 
-#### Shared Secret Configuration
+### Option 2: External Database
 
-```yaml
-# postgres-credentials-secret.yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: postgres-credentials
-  namespace: espresso-production
-type: Opaque
-stringData:
-  host: "espresso-db-postgres"
-  port: "5432"
-  database: "espresso_ml"
-  username: "postgres_user"
-  password: "postgres_password"
-  connection-string: "postgresql://postgres_user:postgres_password@espresso-db-postgres:5432/espresso_ml"
-```
+Connect to an existing PostgreSQL instance:
 
-### Option 2: Cross-Namespace Communication
-
-If your API must be in a different namespace, use the fully qualified domain name.
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: espresso-api
-  namespace: api-namespace
-spec:
-  template:
-    spec:
-      containers:
-      - name: api
-        env:
-        - name: DB_HOST
-          value: "espresso-db-postgres.espresso-production.svc.cluster.local"
-        - name: DB_PORT
-          value: "5432"
-```
-
-## Environment-Specific Configuration
-
-### Production Environment
-
-```yaml
-# production-config.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: api-config
-  namespace: espresso-production
-data:
-  NODE_ENV: "production"
-  DB_HOST: "espresso-db-postgres"
-  DB_PORT: "5432"
-  DB_NAME: "espresso_ml"
-  DB_SSL: "true"
-  DB_POOL_MIN: "2"
-  DB_POOL_MAX: "10"
-  LOG_LEVEL: "info"
-```
-
-### Development Environment
-
-```yaml
-# development-config.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: api-config
-  namespace: espresso-development
-data:
-  NODE_ENV: "development"
-  DB_HOST: "espresso-db-postgres"
-  DB_PORT: "5432"
-  DB_NAME: "espresso_ml_dev"
-  DB_SSL: "false"
-  DB_POOL_MIN: "1"
-  DB_POOL_MAX: "5"
-  LOG_LEVEL: "debug"
+```bash
+# Production environment variables
+export DB_HOST=your-production-db-host
+export DB_PORT=5432
+export DB_NAME=espresso_ml_production
+export DB_USER=espresso_prod_user
+export DB_PASSWORD=your_secure_password
+export DB_SSL=true
 ```
 
 ## Database Connection Examples
@@ -178,6 +115,8 @@ const pool = new Pool({
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
   min: parseInt(process.env.DB_POOL_MIN || '2'),
   max: parseInt(process.env.DB_POOL_MAX || '10'),
+  connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '30000'),
+  statement_timeout: parseInt(process.env.DB_STATEMENT_TIMEOUT || '60000'),
 });
 
 export default pool;
@@ -199,88 +138,90 @@ engine = create_engine(
     pool_size=int(os.getenv('DB_POOL_MIN', 2)),
     max_overflow=int(os.getenv('DB_POOL_MAX', 10)),
     pool_pre_ping=True,
-    ssl='require' if os.getenv('DB_SSL') == 'true' else None
+    connect_args={'sslmode': 'require'} if os.getenv('DB_SSL') == 'true' else {}
 )
 ```
 
-## Deployment Workflow Integration
+### Go (pgx)
 
-### 1. Infrastructure Deployment (This Repository)
+```go
+// database.go
+package database
 
-```yaml
-# .github/workflows/deploy.yml
-# Deploys PostgreSQL database first
+import (
+    "context"
+    "fmt"
+    "os"
+    "github.com/jackc/pgx/v5/pgxpool"
+)
+
+var DB *pgxpool.Pool
+
+func Connect() error {
+    dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+        os.Getenv("DB_USER"),
+        os.Getenv("DB_PASSWORD"),
+        os.Getenv("DB_HOST"),
+        os.Getenv("DB_PORT"),
+        os.Getenv("DB_NAME"),
+        getSSLMode(),
+    )
+
+    config, err := pgxpool.ParseConfig(dsn)
+    if err != nil {
+        return err
+    }
+
+    config.MinConns = 2
+    config.MaxConns = 10
+
+    DB, err = pgxpool.NewWithConfig(context.Background(), config)
+    return err
+}
+
+func getSSLMode() string {
+    if os.Getenv("DB_SSL") == "true" {
+        return "require"
+    }
+    return "disable"
+}
 ```
 
-### 2. API Deployment (Separate Repository)
+## Environment-Specific Configuration
 
-Create a workflow in your API repository that:
+### Development Environment
 
-```yaml
-# .github/workflows/deploy-api.yml
-name: Deploy API
+```bash
+# .env.development
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=espresso_ml_development
+DB_USER=espresso_dev_user
+DB_PASSWORD=dev_password_123
+DB_SSL=false
+DB_POOL_MIN=1
+DB_POOL_MAX=5
+```
 
-on:
-  workflow_run:
-    workflows: ["Deploy Infrastructure"]  # Wait for infrastructure
-    types:
-      - completed
-    branches: [main, develop]
+### Production Environment
 
-jobs:
-  deploy-api:
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    steps:
-      - name: Checkout API code
-        uses: actions/checkout@v4
-
-      - name: Configure kubectl
-        uses: azure/k8s-set-context@v3
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBE_CONFIG_PROD }}
-
-      - name: Deploy API
-        run: |
-          # Apply database secrets first
-          kubectl apply -f k8s/secrets/
-          
-          # Apply ConfigMaps
-          kubectl apply -f k8s/configmaps/
-          
-          # Deploy API
-          kubectl apply -f k8s/deployments/
-          
-          # Wait for rollout
-          kubectl rollout status deployment/espresso-api -n espresso-production
+```bash
+# .env.production
+DB_HOST=your-production-db.example.com
+DB_PORT=5432
+DB_NAME=espresso_ml_production
+DB_USER=espresso_prod_user
+DB_PASSWORD=secure_prod_password_123
+DB_SSL=true
+DB_POOL_MIN=2
+DB_POOL_MAX=20
+DB_CONNECTION_TIMEOUT=30
+DB_STATEMENT_TIMEOUT=60
 ```
 
 ## Health Checks and Readiness
 
-### API Readiness Probe
-
-```yaml
-readinessProbe:
-  httpGet:
-    path: /health
-    port: 3000
-  initialDelaySeconds: 10
-  periodSeconds: 5
-  timeoutSeconds: 3
-  failureThreshold: 3
-
-livenessProbe:
-  httpGet:
-    path: /health
-    port: 3000
-  initialDelaySeconds: 30
-  periodSeconds: 10
-  timeoutSeconds: 3
-  failureThreshold: 3
-```
-
-### Health Check Endpoint
+### API Health Check Endpoint
 
 ```typescript
 // health.ts
@@ -290,7 +231,7 @@ import db from './database';
 export async function healthCheck(req: Request, res: Response) {
   try {
     // Test database connection
-    await db.query('SELECT 1');
+    await db.query('SELECT NOW()');
     
     res.status(200).json({
       status: 'healthy',
@@ -308,45 +249,81 @@ export async function healthCheck(req: Request, res: Response) {
 }
 ```
 
-## Migration Strategy
-
-### Database Migrations
-
-When the PostgreSQL chart is updated, you may need to run migrations:
+### Docker Health Check
 
 ```yaml
-# migration-job.yaml
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: api-migrations
-  namespace: espresso-production
-spec:
-  template:
-    spec:
-      containers:
-      - name: migrations
-        image: your-registry/espresso-api:latest
-        command: ["npm", "run", "migrate"]
-        env:
-        - name: DB_HOST
-          value: "espresso-db-postgres"
-        - name: DB_USER
-          valueFrom:
-            secretKeyRef:
-              name: postgres-credentials
-              key: username
-        - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: postgres-credentials
-              key: password
-        - name: DB_NAME
-          valueFrom:
-            secretKeyRef:
-              name: postgres-credentials
-              key: database
-      restartPolicy: OnFailure
+# docker-compose.yml
+api:
+  build: .
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 40s
+```
+
+## Migration Strategy
+
+### Database Initialization
+
+The database schema is automatically initialized when using the Docker image. The schema files are executed in order:
+
+1. `01-extensions.sql` - PostgreSQL extensions
+2. `02-users.sql` - User management
+3. `03-beans.sql` - Coffee bean tracking
+4. `04-bean-batches.sql` - Bean batch management
+5. `05-machines.sql` - Espresso machine tracking
+6. `06-grinders.sql` - Grinder management
+7. `07-shots.sql` - Shot records
+8. `08-shot-preparation.sql` - Shot preparation details
+9. `09-shot-extraction.sql` - Extraction parameters
+10. `10-shot-environment.sql` - Environmental data
+11. `11-shot-feedback.sql` - User feedback
+12. `12-shot-history.sql` - Historical tracking
+13. `13-shot-drafts.sql` - Draft shots
+14. `14-indexes.sql` - Database indexes
+
+### Application Migrations
+
+For application-specific migrations:
+
+```typescript
+// migrations.ts
+import db from './database';
+
+export async function runMigrations() {
+  try {
+    // Check if migrations table exists
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS migrations (
+        id SERIAL PRIMARY KEY,
+        filename VARCHAR(255) UNIQUE NOT NULL,
+        executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Run pending migrations
+    const migrations = ['001_add_user_preferences.sql', '002_add_shot_analytics.sql'];
+    
+    for (const migration of migrations) {
+      const result = await db.query(
+        'SELECT COUNT(*) FROM migrations WHERE filename = $1',
+        [migration]
+      );
+      
+      if (parseInt(result.rows[0].count) === 0) {
+        const migrationSQL = await fs.readFile(`migrations/${migration}`, 'utf8');
+        await db.query(migrationSQL);
+        await db.query('INSERT INTO migrations (filename) VALUES ($1)', [migration]);
+        console.log(`Migration ${migration} executed successfully`);
+      }
+    }
+  } catch (error) {
+    console.error('Migration failed:', error);
+    throw error;
+  }
+}
 ```
 
 ## Testing Integration
@@ -354,61 +331,85 @@ spec:
 ### Connection Test
 
 ```bash
-# Test database connectivity from API pod
-kubectl exec -it deployment/espresso-api -n espresso-production -- \
-  psql -h espresso-db-postgres -U $DB_USER -d $DB_NAME -c "SELECT version();"
+# Test database connectivity
+docker-compose exec postgres pg_isready -U postgres -d espresso_ml
 
 # Test API health endpoint
-kubectl port-forward svc/espresso-api 3000:3000 -n espresso-production &
 curl http://localhost:3000/health
+```
+
+### Integration Test Example
+
+```typescript
+// integration.test.ts
+import request from 'supertest';
+import app from './app';
+
+describe('Database Integration', () => {
+  test('should connect to database', async () => {
+    const response = await request(app)
+      .get('/health')
+      .expect(200);
+    
+    expect(response.body.database).toBe('connected');
+  });
+
+  test('should retrieve beans from database', async () => {
+    const response = await request(app)
+      .get('/api/beans')
+      .expect(200);
+    
+    expect(Array.isArray(response.body)).toBe(true);
+  });
+});
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Connection Refused**: Check if database is deployed to correct namespace
-2. **Authentication Failed**: Verify secrets are correctly shared
-3. **Service Not Found**: Ensure service name matches Helm release name
-4. **Network Policy**: Check if network policies block cross-namespace communication
+1. **Connection Refused**: Check if PostgreSQL is running and accessible
+2. **Authentication Failed**: Verify credentials and database permissions
+3. **Database Not Found**: Ensure database exists and schema is initialized
+4. **SSL Errors**: Configure SSL settings correctly for production
 
 ### Debug Commands
 
 ```bash
-# Check database service
-kubectl get svc -n espresso-production
+# Check database connection
+psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "SELECT version();"
 
-# Check database pods
-kubectl get pods -n espresso-production -l app=espresso-db-postgres
+# Test with Docker Compose
+docker-compose logs postgres
+docker-compose exec postgres psql -U postgres -c "\dt"
 
-# Check API pods logs
-kubectl logs -f deployment/espresso-api -n espresso-production
-
-# Test network connectivity
-kubectl exec -it deployment/espresso-api -n espresso-production -- \
-  nslookup espresso-db-postgres.espresso-production.svc.cluster.local
+# Check network connectivity
+telnet $DB_HOST $DB_PORT
 ```
 
 ## Security Considerations
 
-1. **Secrets Management**: Use Kubernetes secrets for database credentials
-2. **Network Policies**: Restrict database access to only API pods
-3. **SSL/TLS**: Enable SSL for database connections in production
+1. **Environment Variables**: Store sensitive data in environment variables or secret management systems
+2. **SSL/TLS**: Enable SSL for database connections in production
+3. **Connection Pooling**: Use appropriate pool sizes to prevent connection exhaustion
 4. **Least Privilege**: Database users should have minimal required permissions
+5. **Password Security**: Use strong, unique passwords for each environment
 
 ## Monitoring and Observability
 
 ### Database Metrics
 
-Monitor database connection metrics in your API:
+Monitor these metrics in your application:
 - Connection pool usage
 - Query response times
 - Error rates
 - Connection failures
+- Active connections
 
 ### Logging
 
 Include database connection information in logs:
+
 ```typescript
 logger.info('Database connected', {
   host: process.env.DB_HOST,
@@ -419,12 +420,4 @@ logger.info('Database connected', {
 });
 ```
 
-## Release Process
-
-1. **Infrastructure Update**: Deploy new PostgreSQL chart version
-2. **Database Migration**: Run any required database migrations
-3. **API Update**: Deploy new API version with updated configurations
-4. **Verification**: Test API connectivity and functionality
-5. **Rollback**: Have rollback procedures ready for both database and API
-
-This integration ensures your API can reliably consume PostgreSQL database releases deployed from the infrastructure repository.
+This integration guide ensures your API can reliably connect to the Espresso ML PostgreSQL database across different environments.
