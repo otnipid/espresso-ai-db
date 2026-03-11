@@ -17,52 +17,84 @@ jobs:
         postgres-version: ['14', '15', '16']
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@692973e3d937129bcbf402b610176e637f1856b2
 
       - name: Setup PostgreSQL ${{ matrix.postgres-version }}
         run: |
           sudo apt-get update
           sudo apt-get install -y wget gnupg
-          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-          echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          
+          # Secure GPG key verification
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/postgresql.gpg
+          echo "deb [signed-by=/etc/apt/trusted.gpg.d/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y postgresql-${{ matrix.postgres-version }} postgresql-contrib-${{ matrix.postgres-version }}
           
-          # Initialize and start PostgreSQL properly for GitHub Actions
-          sudo pg_createcluster ${{ matrix.postgres-version }} main --start
-          sudo pg_ctlcluster ${{ matrix.postgres-version }} main start
+          # Check if cluster exists, if not create it
+          if ! sudo pg_lsclusters | grep -q "${{ matrix.postgres-version }}.*main.*online"; then
+            sudo pg_createcluster ${{ matrix.postgres-version }} main --start
+          else
+            sudo pg_ctlcluster ${{ matrix.postgres-version }} main start
+          fi
           
           # Wait for PostgreSQL to be ready
           sudo -u postgres pg_isready -t 30
           
-          # Create test user and database
-          sudo -u postgres psql -c "CREATE USER test WITH SUPERUSER PASSWORD 'test';"
-          sudo -u postgres createdb -O test testdb
+          # Create test user and database with secure credentials
+          set +x
+          DB_PASSWORD="${{ secrets.DB_PASSWORD || $(openssl rand -base64 32) }}"
+          sudo -u postgres psql -c "CREATE USER test WITH PASSWORD '$DB_PASSWORD';" 2>/dev/null || echo "User test already exists"
+          sudo -u postgres createdb -O test testdb 2>/dev/null || echo "Database testdb already exists"
+          # Grant limited privileges
+          sudo -u postgres psql -c "GRANT CONNECT ON DATABASE testdb TO test;"
+          sudo -u postgres psql -c "GRANT USAGE ON SCHEMA public TO test;"
+          sudo -u postgres psql -c "GRANT CREATE ON SCHEMA public TO test;"
+          set -x
+          echo "DB_PASSWORD=$DB_PASSWORD" >> $GITHUB_ENV
 
       - name: Validate Schema Files
         run: |
           cd schema
           
-          # Check each individual file
+          # Validate file sizes and content before processing
+          for file in *.sql; do
+            if [ $(stat -c%s "$file") -gt 1048576 ]; then
+              echo "ERROR: File too large: $file"
+              exit 1
+            fi
+            if grep -q -E "(DROP|DELETE|TRUNCATE)\s+(DATABASE|USER)" "$file"; then
+              echo "ERROR: Dangerous SQL detected in: $file"
+              exit 1
+            fi
+          done
+          
+          # Check each individual file with sanitized input
           for file in *.sql; do
             echo "Validating $file..."
             if [ "$file" = "00-schema.sql" ]; then
               echo "Skipping master schema file (will test individual files)"
             else
-              PGPASSWORD=test psql -h localhost -U test -d testdb -f "$file"
+              # Sanitize file name to prevent injection
+              if [[ "$file" =~ ^[a-zA-Z0-9_-]+\.sql$ ]]; then
+                timeout 300 PGPASSWORD=$DB_PASSWORD psql -h localhost -U test -d testdb -f "$file"
+              else
+                echo "ERROR: Invalid file name: $file"
+                exit 1
+              fi
             fi
           done
           
           # Test that all tables were created successfully
           echo "Testing complete schema..."
-          PGPASSWORD=test psql -h localhost -U test -d testdb -c "\dt"
+          timeout 300 PGPASSWORD=$DB_PASSWORD psql -h localhost -U test -d testdb -c "\dt"
 
       - name: Test Schema Constraints
         run: |
           cd schema
           
-          # Create test data to validate constraints
-          PGPASSWORD=test psql -h localhost -U test -d testdb << 'EOF'
+          # Create test data to validate constraints with secure connection
+          set +x
+          timeout 300 PGPASSWORD=$DB_PASSWORD psql -h localhost -U test -d testdb << 'EOF'
           -- Test users table
           INSERT INTO users (name, email) VALUES ('Test User', 'test@example.com');
           
@@ -80,6 +112,7 @@ jobs:
           SELECT COUNT(*) as bean_count FROM beans;
           SELECT COUNT(*) as batch_count FROM bean_batches;
           EOF
+          set -x
 
       - name: Schema Documentation Check
         run: |
