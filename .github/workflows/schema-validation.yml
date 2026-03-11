@@ -42,7 +42,11 @@ jobs:
           
           # Create test user and database with secure credentials
           set +x
-          DB_PASSWORD="${{ secrets.DB_PASSWORD || $(openssl rand -base64 32) }}"
+          if [ -n "${{ secrets.DB_PASSWORD }}" ]; then
+            DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
+          else
+            DB_PASSWORD=$(openssl rand -base64 32)
+          fi
           sudo -u postgres psql -c "CREATE USER test WITH PASSWORD '$DB_PASSWORD';" 2>/dev/null || echo "User test already exists"
           sudo -u postgres createdb -O test testdb 2>/dev/null || echo "Database testdb already exists"
           # Grant limited privileges
