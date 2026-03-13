@@ -1,0 +1,91 @@
+title = "Gitleaks Configuration for Espresso ML Database"
+
+# Gitleaks configuration for Espresso ML Database Repository
+# This config is tailored for database schema files and CI/CD configurations
+
+[extend]
+useDefault = true
+
+# Allow database connection strings and environment variables
+[allowlist]
+description = "Global allowlist"
+paths = [
+  '''docker-compose\.yml''',
+  '''\.env''',
+  '''backend/''',
+  '''schema/.*\.sql''',
+  '''docker-entrypoint-initdb\.d/.*\.sh''',
+  '''\.github/workflows/.*\.yml'''
+]
+
+# Allow common database patterns
+[[rules.allowlist]]
+description = "Allow database connection patterns"
+regexes = [
+  '''POSTGRES_[A-Z_]+.*=.*''',
+  '''DB_[A-Z_]+.*=.*''',
+  '''localhost:5432''',
+  '''postgres://''',
+  '''postgresql://''',
+  '''host.*=.*postgres''',
+  '''user.*=.*postgres''',
+  '''password.*=.*''',
+]
+
+# Allow GitHub Actions patterns
+[[rules.allowlist]]
+description = "Allow GitHub Actions secrets patterns"
+regexes = [
+  '''\${{\s*secrets\.[A-Z_]+\s*}}''',
+  '''\${{\s*env\.[A-Z_]+\s*}}''',
+  '''GITHUB_TOKEN''',
+  '''REGISTRY.*=.*''',
+  '''IMAGE_NAME.*=.*''',
+]
+
+# Allow Docker and container patterns
+[[rules.allowlist]]
+description = "Allow Docker and container patterns"
+regexes = [
+  '''FROM postgres:''',
+  '''ghcr\.io/''',
+  ''':latest''',
+  ''':15''',
+  '''container_name''',
+  '''healthcheck''',
+]
+
+# Allow documentation and comments
+[[rules.allowlist]]
+description = "Allow documentation and example patterns"
+regexes = [
+  '''example\.com''',
+  '''test@''',
+  '''demo@''',
+  '''localhost''',
+  '''127\.0\.0\.1''',
+  '''0\.0\.0\.0''',
+]
+
+# Allow UUID and test data patterns
+[[rules.allowlist]]
+description = "Allow UUID and test data patterns"
+regexes = [
+  '''[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}''',
+  '''Test User''',
+  '''test@example\.com''',
+  '''Test Bean''',
+  '''Test Roaster''',
+]
+
+# Allow SQL comments and documentation
+[[rules.allowlist]]
+description = "Allow SQL documentation patterns"
+regexes = [
+  '''--.*Purpose:''',
+  '''--.*Dependencies:''',
+  '''--.*Idempotent:''',
+  '''--.*Updated:''',
+  '''--.*Test.*''',
+  '''--.*Example.*''',
+]
