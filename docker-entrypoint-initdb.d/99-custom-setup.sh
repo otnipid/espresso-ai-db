@@ -12,8 +12,14 @@ until pg_isready -h localhost -p 5432 -U "$POSTGRES_USER"; do
     sleep 2
 done
 
-# Connect to the database and run additional setup
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+# Connect to database and run additional setup
+if [ -n "$POSTGRES_PASSWORD" ]; then
+    # Password provided via environment variable (GitHub Actions)
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --password "$POSTGRES_PASSWORD" --dbname "$POSTGRES_DB" <<-EOSQL
+else
+    echo "❌ ERROR: POSTGRES_PASSWORD environment variable is required"
+    exit 1
+fi
     -- Create a view for active shots (useful for analytics)
     CREATE OR REPLACE VIEW active_shots AS
     SELECT 
