@@ -17,7 +17,7 @@ jobs:
         postgres-version: ['14', '15', '16']
     steps:
       - name: Checkout code
-        uses: actions/checkout@692973e3d937129bcbf402b610176e637f1856b2
+        uses: actions/checkout@v4
 
       - name: Setup PostgreSQL ${{ matrix.postgres-version }}
         run: |
@@ -31,14 +31,16 @@ jobs:
           sudo apt-get install -y postgresql-${{ matrix.postgres-version }} postgresql-contrib-${{ matrix.postgres-version }}
           
           # Check if cluster exists, if not create it
-          if ! sudo pg_lsclusters | grep -q "${{ matrix.postgres-version }}.*main.*online"; then
+          if ! sudo pg_lsclusters | grep -q "${{ matrix.postgres-version }}.*main"; then
             sudo pg_createcluster ${{ matrix.postgres-version }} main --start
           else
-            sudo pg_ctlcluster ${{ matrix.postgres-version }} main start
+            # Cluster exists, ensure it's started
+            sudo pg_ctlcluster ${{ matrix.postgres-version }} main start || true
           fi
           
-          # Wait for PostgreSQL to be ready
-          sudo -u postgres pg_isready -t 30
+          # Wait for PostgreSQL to be ready and get actual port
+          PGPORT=$(sudo pg_lsclusters -h | grep "${{ matrix.postgres-version }}.*main" | awk '{print $3}')
+          sudo -u postgres pg_isready -p $PGPORT -t 30
           
           # Create test user and database with secure credentials
           set +x
@@ -47,14 +49,15 @@ jobs:
           else
             DB_PASSWORD=$(openssl rand -base64 32)
           fi
-          sudo -u postgres psql -c "CREATE USER test WITH PASSWORD '$DB_PASSWORD';" 2>/dev/null || echo "User test already exists"
-          sudo -u postgres createdb -O test testdb 2>/dev/null || echo "Database testdb already exists"
+          sudo -u postgres psql -p $PGPORT -c "CREATE USER test WITH PASSWORD '$DB_PASSWORD';" 2>/dev/null || echo "User test already exists"
+          sudo -u postgres createdb -p $PGPORT -O test testdb 2>/dev/null || echo "Database testdb already exists"
           # Grant limited privileges
-          sudo -u postgres psql -c "GRANT CONNECT ON DATABASE testdb TO test;"
-          sudo -u postgres psql -c "GRANT USAGE ON SCHEMA public TO test;"
-          sudo -u postgres psql -c "GRANT CREATE ON SCHEMA public TO test;"
+          sudo -u postgres psql -p $PGPORT -c "GRANT CONNECT ON DATABASE testdb TO test;"
+          sudo -u postgres psql -p $PGPORT -c "GRANT USAGE ON SCHEMA public TO test;"
+          sudo -u postgres psql -p $PGPORT -c "GRANT CREATE ON SCHEMA public TO test;"
           set -x
           echo "DB_PASSWORD=$DB_PASSWORD" >> $GITHUB_ENV
+          echo "PGPORT=$PGPORT" >> $GITHUB_ENV
 
       - name: Validate Schema Files
         run: |
@@ -80,7 +83,7 @@ jobs:
             else
               # Sanitize file name to prevent injection
               if [[ "$file" =~ ^[a-zA-Z0-9_-]+\.sql$ ]]; then
-                timeout 300 PGPASSWORD=$DB_PASSWORD psql -h localhost -U test -d testdb -f "$file"
+                PGPASSWORD=$DB_PASSWORD psql -h localhost -p $PGPORT -U test -d testdb -f "$file"
               else
                 echo "ERROR: Invalid file name: $file"
                 exit 1
@@ -90,7 +93,7 @@ jobs:
           
           # Test that all tables were created successfully
           echo "Testing complete schema..."
-          timeout 300 PGPASSWORD=$DB_PASSWORD psql -h localhost -U test -d testdb -c "\dt"
+          PGPASSWORD=$DB_PASSWORD psql -h localhost -p $PGPORT -U test -d testdb -c "\dt"
 
       - name: Test Schema Constraints
         run: |
@@ -98,7 +101,7 @@ jobs:
           
           # Create test data to validate constraints with secure connection
           set +x
-          timeout 300 PGPASSWORD=$DB_PASSWORD psql -h localhost -U test -d testdb << 'EOF'
+          PGPASSWORD=$DB_PASSWORD psql -h localhost -p $PGPORT -U test -d testdb << 'EOF'
           -- Test users table
           INSERT INTO users (name, email) VALUES ('Test User', 'test@example.com');
           
