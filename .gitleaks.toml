@@ -6,9 +6,9 @@ title = "Gitleaks Configuration for Espresso ML Database"
 [extend]
 useDefault = true
 
-# Allow database connection strings and environment variables
+# Global allowlist for paths and patterns
 [allowlist]
-description = "Global allowlist"
+description = "Global allowlist for Espresso ML Database"
 paths = [
   '''docker-compose\.yml''',
   '''\.env''',
@@ -18,9 +18,8 @@ paths = [
   '''\.github/workflows/.*\.yml'''
 ]
 
-# Allow common database patterns
-[[rules.allowlist]]
-description = "Allow database connection patterns"
+# Allow database connection strings and environment variables
+regexTarget = "line"
 regexes = [
   '''POSTGRES_[A-Z_]+.*=.*''',
   '''DB_[A-Z_]+.*=.*''',
@@ -30,58 +29,33 @@ regexes = [
   '''host.*=.*postgres''',
   '''user.*=.*postgres''',
   '''password.*=.*''',
-]
-
-# Allow GitHub Actions patterns
-[[rules.allowlist]]
-description = "Allow GitHub Actions secrets patterns"
-regexes = [
+  # GitHub Actions secrets patterns
   '''\${{\s*secrets\.[A-Z_]+\s*}}''',
   '''\${{\s*env\.[A-Z_]+\s*}}''',
   '''GITHUB_TOKEN''',
   '''REGISTRY.*=.*''',
   '''IMAGE_NAME.*=.*''',
-]
-
-# Allow Docker and container patterns
-[[rules.allowlist]]
-description = "Allow Docker and container patterns"
-regexes = [
+  # Docker and container patterns
   '''FROM postgres:''',
   '''ghcr\.io/''',
   ''':latest''',
   ''':15''',
   '''container_name''',
   '''healthcheck''',
-]
-
-# Allow documentation and comments
-[[rules.allowlist]]
-description = "Allow documentation and example patterns"
-regexes = [
+  # Documentation and examples
   '''example\.com''',
   '''test@''',
   '''demo@''',
   '''localhost''',
   '''127\.0\.0\.1''',
   '''0\.0\.0\.0''',
-]
-
-# Allow UUID and test data patterns
-[[rules.allowlist]]
-description = "Allow UUID and test data patterns"
-regexes = [
+  # UUID and test data patterns
   '''[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}''',
   '''Test User''',
   '''test@example\.com''',
   '''Test Bean''',
   '''Test Roaster''',
-]
-
-# Allow SQL comments and documentation
-[[rules.allowlist]]
-description = "Allow SQL documentation patterns"
-regexes = [
+  # SQL comments and documentation
   '''--.*Purpose:''',
   '''--.*Dependencies:''',
   '''--.*Idempotent:''',
