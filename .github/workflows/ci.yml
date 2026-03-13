@@ -31,7 +31,8 @@ jobs:
       - name: Validate docker-compose.yml
         run: |
           echo "Validating docker-compose.yml..."
-          docker-compose config
+          # Use modern docker compose syntax (docker-compose is deprecated)
+          docker compose config
 
 
   schema-validation:
