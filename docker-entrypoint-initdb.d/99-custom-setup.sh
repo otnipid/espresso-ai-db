@@ -12,27 +12,49 @@ until pg_isready -U "$POSTGRES_USER"; do
     sleep 2
 done
 
-# Execute schema files in order
-echo "📋 Loading Espresso ML database schemas..."
-cd /docker-entrypoint-initdb.d/schema
-
-# First, execute the master schema file that includes all others
-if [ -f "00-schema.sql" ]; then
-    echo "🔧 Executing 00-schema.sql (master schema file)..."
-    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" < 00-schema.sql
+# Connect to database and run additional setup
+if [ -n "$POSTGRES_PASSWORD" ]; then
+    # Password provided via environment variable (GitHub Actions)
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --password "$POSTGRES_PASSWORD" --dbname "$POSTGRES_DB" <<-EOSQL
 else
-    # Fallback: execute individual files in order
-    for file in 01-*.sql 02-*.sql 03-*.sql 04-*.sql 05-*.sql 06-*.sql 07-*.sql 08-*.sql 09-*.sql 10-*.sql 11-*.sql 12-*.sql 13-*.sql 14-*.sql; do
-        if [ -f "$file" ]; then
-            echo "🔧 Executing $file..."
-            psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" < "$file"
-        fi
-    done
+    echo "❌ ERROR: POSTGRES_PASSWORD environment variable is required"
+    exit 1
 fi
+    -- Create a view for active shots (useful for analytics)
+    CREATE OR REPLACE VIEW active_shots AS
+    SELECT 
+        s.id,
+        s.user_id,
+        u.username,
+        b.name as bean_name,
+        s.rating,
+        s.created_at as shot_date
+    FROM shots s
+    JOIN users u ON s.user_id = u.id
+    JOIN beans b ON s.bean_id = b.id
+    WHERE s.rating IS NOT NULL
+    ORDER BY s.created_at DESC;
 
-# Create additional views and functions
-echo "🔧 Creating views and functions..."
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+    -- Create a function to get shot statistics
+    CREATE OR REPLACE FUNCTION get_shot_statistics(p_user_id UUID DEFAULT NULL)
+    RETURNS TABLE(
+        total_shots BIGINT,
+        avg_rating NUMERIC,
+        favorite_bean TEXT,
+        last_shot_date TIMESTAMP
+    ) AS \$\$
+    BEGIN
+        RETURN QUERY
+        SELECT 
+            COUNT(*)::BIGINT,
+            ROUND(AVG(s.rating), 2),
+            (SELECT b.name FROM shots s2 JOIN beans b ON s2.bean_id = b.id WHERE s2.user_id = COALESCE(p_user_id, s.user_id) GROUP BY b.name ORDER BY COUNT(*) DESC LIMIT 1),
+            MAX(s.created_at)
+        FROM shots s
+        WHERE (p_user_id IS NULL OR s.user_id = p_user_id);
+    END;
+    \$\$ LANGUAGE plpgsql;
+
     -- Grant necessary permissions
     GRANT USAGE ON SCHEMA public TO PUBLIC;
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO PUBLIC;
