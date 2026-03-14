@@ -152,14 +152,15 @@ jobs:
           
           # Get connection details
           SERVICE_URI=$(avn service get ${{ env.AIVEN_SERVICE }} --format '{service_uri}' | tr -d '"')
-          DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:]' '{print $4}')
-          DB_PORT=$(echo "$SERVICE_URI" | awk -F'[@:]' '{print $5}')
-          DB_NAME=$(echo "$SERVICE_URI" | awk -F'[/]' '{print $4}')
-          DB_USER=${{ vars.AIVEN_DB_USER }}
+          # Extract connection info from URI
+          DB_USER=$(echo "$SERVICE_URI" | sed -E 's#postgres://([^:]+):.*#\1#')
+          DB_HOST=$(echo "$SERVICE_URI" | sed -E 's#postgres://[^:]+:[^@]+@([^:/]+):.*#\1#')
+          DB_PORT=$(echo "$SERVICE_URI" | sed -E 's#postgres://[^:]+:[^@]+@[^:]+:([0-9]+)/.*#\1#')
+          DB_NAME=$(echo "$SERVICE_URI" | sed -E 's#.*/([^/?]+).*#\1#')
           DB_PASSWORD=${{ secrets.AIVEN_DB_PASSWORD }}
           
           # Test basic connectivity
-          PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$CLEAN_DB_NAME" -c "SELECT version();"
+          PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT version();"
           
           # Verify tables were created
           TABLE_COUNT=$(PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$CLEAN_DB_NAME" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | tr -d ' ')
