@@ -57,12 +57,6 @@ jobs:
           echo "version-type=$VERSION_TYPE" >> $GITHUB_OUTPUT
           echo "release-notes=$RELEASE_NOTES" >> $GITHUB_OUTPUT
 
-      - name: Commit Version Changes
-        run: |
-          git add .
-          git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
-          git push origin develop
-
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
