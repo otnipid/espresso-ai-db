@@ -89,8 +89,6 @@ jobs:
           avn --version
 
       - name: Deploy Schema to Aiven PostgreSQL
-        env:
-          AVN_AUTH_TOKEN: ${{ secrets.AIVEN_AUTH_TOKEN }}
         run: |
           echo " Deploying database schema to Aiven PostgreSQL (v${{ env.DEPLOY_VERSION }})..."
           
@@ -147,8 +145,6 @@ jobs:
           echo "🎉 Schema deployment completed successfully!"
 
       - name: Run Database Health Checks
-        env:
-          AVN_AUTH_TOKEN: ${{ secrets.AIVEN_AUTH_TOKEN }}
         run: |
           echo "🔍 Running database health checks..."
           
@@ -173,12 +169,14 @@ jobs:
           echo "📊 Found $TABLE_COUNT tables in database"
           
           # Test basic data insertion
-          PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" << 'EOF'
+          PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" <<EOF
           -- Test users table
-          INSERT INTO users (name, email) VALUES ('Health Check User', 'health-check@example.com') ON CONFLICT (email) DO NOTHING;
-          
+          INSERT INTO users (name, email) 
+          VALUES ('Health Check User', 'health-check@example.com') 
+          ON CONFLICT (email) DO NOTHING;
+
           -- Verify data integrity
-          SELECT COUNT(*) as user_count FROM users;
+          SELECT COUNT(*) AS user_count FROM users;
           EOF
           
           echo "✅ Database health checks passed!"
