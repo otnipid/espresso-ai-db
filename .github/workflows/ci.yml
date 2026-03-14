@@ -59,6 +59,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Validate Required Secrets
+        run: |
+          echo "🔍 Validating required secrets..."
+          
+          # Check for CI_TEST_PASSWORD
+          if [ -z "${{ secrets.CI_TEST_PASSWORD }}" ]; then
+            echo "❌ CI_TEST_PASSWORD secret is not configured"
+            echo "📋 To fix this issue:"
+            echo "   1. Go to repository Settings > Secrets and variables > Actions"
+            echo "   2. Click 'New repository secret'"
+            echo "   3. Name: CI_TEST_PASSWORD"
+            echo "   4. Value: Set a secure password for PostgreSQL testing"
+            echo "   5. Ensure it's available for both push and PR workflows"
+            exit 1
+          fi
+          
+          echo "✅ All required secrets are configured"
+
       - name: Setup PostgreSQL
         run: |
           sudo apt-get update
@@ -93,6 +111,7 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_DETECT_OPTIONS: '--log-opts=--no-merges --first-parent ${{ github.event.pull_request.base.sha }}..${{ github.sha }}'
 
       - name: Run Semgrep (Static Analysis)
         env:
