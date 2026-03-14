@@ -191,7 +191,7 @@ jobs:
               sha: context.sha,
               state: 'success',
               target_url: 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}',
-              description: 'PostgreSQL development deployment to Aiven successful (v${{ env.DEPLOY_VERSION }})',
+              description: 'PostgreSQL development deployment to Aiven successful',
               context: 'database/deployment'
             });
 
