@@ -101,9 +101,6 @@ jobs:
           echo "Authenticating with Aiven..."
           echo "Using service: ${{ env.AIVEN_SERVICE }}"
           
-          # Establish authenticated session first
-          echo "${{ secrets.AIVEN_AUTH_TOKEN }}" | avn user login --token
-          
           echo "Testing service access..."
           avn service list
           
