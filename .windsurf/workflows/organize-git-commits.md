@@ -29,7 +29,7 @@ git diff --name-only
 Analyze the changes and group them into logical categories:
 
 #### Common Categories:
-- **Infrastructure/Setup**: Config files, build tools, test setup
+- **Database/Setup**: Config files, schema, migrations
 - **Dependencies**: Package.json, lock files, new libraries
 - **Core Features**: Main application logic, services, controllers
 - **Tests**: Test files, test configuration, test utilities
@@ -77,11 +77,11 @@ git push origin <branch-name>
 
 ## Examples
 
-### Example 1: Test Infrastructure Setup
+### Example 1: Test Database Setup
 ```bash
 # Files: jest.config.js, package.json, babel.config.js
 git add jest.config.js package.json babel.config.js
-git commit -m "feat: implement Jest testing infrastructure
+git commit -m "feat: implement Jest testing database
 
 - Add Jest configuration with TypeScript support
 - Configure Babel for test coverage instrumentation
@@ -89,7 +89,7 @@ git commit -m "feat: implement Jest testing infrastructure
 - Add test environment variables setup"
 ```
 
-### Example 2: Bug Fix
+### Example 2: Database Fix
 ```bash
 # Files: src/services/UserService.ts, src/__tests__/unit/UserService.test.ts
 git add src/services/UserService.ts src/__tests__/unit/UserService.test.ts
