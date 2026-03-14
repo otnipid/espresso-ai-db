@@ -147,6 +147,8 @@ jobs:
           echo "🎉 Schema deployment completed successfully!"
 
       - name: Run Database Health Checks
+        env:
+          AVN_AUTH_TOKEN: ${{ secrets.AIVEN_AUTH_TOKEN }}
         run: |
           echo "🔍 Running database health checks..."
           
