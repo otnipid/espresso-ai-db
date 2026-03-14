@@ -14,7 +14,6 @@ on:
         default: 'development'
         type: choice
         options:
-          - production
           - development
 
 env:
@@ -73,76 +72,6 @@ jobs:
             Dockerfile
           retention-days: 30
 
-  deploy-production:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'production'
-    environment: production
-    env:
-      NAMESPACE: espresso-production
-      ENVIRONMENT: production
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: 'v1.31.0'
-
-      - name: Set kubectl context
-        uses: azure/k8s-set-context@v3
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBE_CONFIG_PROD }}
-
-      - name: Deploy PostgreSQL
-        run: |
-          cd charts/postgesql
-          helm dependency update
-          helm upgrade --install espresso-db . \
-            --namespace ${{ env.NAMESPACE }} \
-            --create-namespace \
-            --values values-${{ env.ENVIRONMENT }}.yaml \
-            --set postgresql.password=${{ secrets.POSTGRES_PASSWORD_PROD }} \
-            --set postgresql.user=${{ secrets.POSTGRES_USER_PROD }} \
-            --set postgresql.db=${{ secrets.POSTGRES_DB_PROD }} \
-            --wait \
-            --timeout=10m
-
-      - name: Verify Deployment
-        run: |
-          kubectl get pods -n ${{ env.NAMESPACE }}
-          kubectl get services -n ${{ env.NAMESPACE }}
-          kubectl get pvc -n ${{ env.NAMESPACE }}
-          
-      - name: Run Health Checks
-        run: |
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=espresso-db -n ${{ env.NAMESPACE }} --timeout=300s
-          
-          # Test database connection
-          kubectl port-forward -n ${{ env.NAMESPACE }} svc/espresso-db-postgres 5432:5432 &
-          PF_PID=$!
-          sleep 10
-          
-          # Test with appropriate credentials
-          PGPASSWORD=${{ secrets.POSTGRES_PASSWORD_PROD }} psql -h localhost -U ${{ secrets.POSTGRES_USER_PROD }} -d ${{ secrets.POSTGRES_DB_PROD }} -c "SELECT version();"
-          kill $PF_PID
-
-      - name: Update Deployment Status
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha: context.sha,
-              state: 'success',
-              target_url: 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}',
-              description: 'PostgreSQL production deployment successful',
-              context: 'database/deployment'
-            });
-
   deploy-development:
     name: Deploy to Development (Aiven)
     runs-on: ubuntu-latest
@@ -150,8 +79,8 @@ jobs:
     if: github.ref == 'refs/heads/develop' || github.event.inputs.environment == 'development'
     environment: development
     env:
-      AIVEN_PROJECT: ${{ secrets.AIVEN_PROJECT_NAME }}
-      AIVEN_SERVICE: ${{ secrets.AIVEN_SERVICE_NAME }}
+      AIVEN_PROJECT: ${{ vars.AIVEN_PROJECT_NAME }}
+      AIVEN_SERVICE: ${{ vars.AIVEN_SERVICE_NAME }}
       DEPLOY_VERSION: ${{ needs.version-management.outputs.version }}
     steps:
       - name: Checkout code
@@ -178,7 +107,7 @@ jobs:
           DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $4}')
           DB_PORT=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $5}')
           DB_NAME=$(echo "$SERVICE_URI" | awk -F'[/] '{print $4}')
-          DB_USER=${{ secrets.AIVEN_DB_USER }}
+          DB_USER=${{ vars.AIVEN_DB_USER }}
           DB_PASSWORD=${{ secrets.AIVEN_DB_PASSWORD }}
           
           echo "📍 Connecting to Aiven PostgreSQL: $DB_HOST:$DB_PORT/$DB_NAME"
@@ -215,7 +144,7 @@ jobs:
           DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $4}')
           DB_PORT=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $5}')
           DB_NAME=$(echo "$SERVICE_URI" | awk -F'[/] '{print $4}')
-          DB_USER=${{ secrets.AIVEN_DB_USER }}
+          DB_USER=${{ vars.AIVEN_DB_USER }}
           DB_PASSWORD=${{ secrets.AIVEN_DB_PASSWORD }}
           
           # Test basic connectivity
