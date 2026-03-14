@@ -90,7 +90,8 @@ jobs:
       - name: Setup Aiven CLI
         run: |
           # Install Aiven CLI
-          curl -Ls https://github.com/aiven/aiven-client/releases/latest/download/aiven-client.tar.gz | tar xz
+          wget https://github.com/aiven/aiven-client/releases/latest/download/aiven-client.tar.gz
+          tar -xzf aiven-client.tar.gz
           sudo mv avn /usr/local/bin/
           avn --version
 
