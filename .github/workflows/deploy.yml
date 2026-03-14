@@ -74,7 +74,7 @@ jobs:
     if: (github.ref == 'refs/heads/develop' || github.event.inputs.environment == 'development') && (needs.version-management.result == 'success' || github.event_name == 'workflow_dispatch')
     environment: development
     env:
-      AVN_AUTH_TOKEN: ${{ secrets.AIVEN_AUTH_TOKEN }}
+      AIVEN_AUTH_TOKEN: ${{ secrets.AIVEN_AUTH_TOKEN }}
       AIVEN_PROJECT: ${{ vars.AIVEN_PROJECT_NAME }}
       AIVEN_SERVICE: ${{ vars.AIVEN_SERVICE_NAME }}
       DEPLOY_VERSION: ${{ needs.version-management.outputs.version }}
