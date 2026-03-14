@@ -100,7 +100,6 @@ jobs:
           # Get Aiven service connection details
           echo "Authenticating with Aiven..."
           echo "Using service: ${{ env.AIVEN_SERVICE }}"
-          echo "Token length: ${# secrets.AIVEN_AUTH_TOKEN }}"
           
           # Establish authenticated session first
           echo "${{ secrets.AIVEN_AUTH_TOKEN }}" | avn user login --token
