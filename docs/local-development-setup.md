@@ -345,7 +345,7 @@ npm run test:integration
 docker-compose down
 
 # Remove volumes (optional)
-docker volume rm espresso-ml-infrastructure_postgres_data
+docker volume rm espresso-db_postgres_data
 ```
 
 ## Production-like Testing
