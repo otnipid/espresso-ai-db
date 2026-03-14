@@ -102,7 +102,7 @@ jobs:
           avn service list --format json
           
           echo "Getting service details..."
-          SERVICE_URI=$(avn service get --format json ${{ env.AIVEN_SERVICE }} | jq -r '.service_uri')
+          SERVICE_URI=$(avn service get ${{ env.AIVEN_SERVICE }} --format json | jq -r '.service_uri')
           echo "Full SERVICE_URI: $SERVICE_URI"
           echo "SERVICE_URI length: ${#SERVICE_URI}"
           DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $4}')
