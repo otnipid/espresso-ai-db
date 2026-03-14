@@ -94,18 +94,25 @@ jobs:
           avn --auth-token ${{ secrets.AIVEN_AUTH_TOKEN }} user
 
       - name: Deploy Schema to Aiven PostgreSQL
+        env:
+          AIVEN_AUTH_TOKEN: ${{ secrets.AIVEN_AUTH_TOKEN }}
         run: |
           echo " Deploying database schema to Aiven PostgreSQL (v${{ env.DEPLOY_VERSION }})..."
           
           # Get Aiven service connection details
           echo "Authenticating with Aiven..."
           echo "Using service: ${{ env.AIVEN_SERVICE }}"
+
+          echo "Token present? ${AIVEN_AUTH_TOKEN:+YES}"
+
+          echo "Authenticating with Aiven..."
+          avn user login --token $AIVEN_AUTH_TOKEN
           
           echo "Testing service access..."
-          avn service list --auth-token ${{ secrets.AIVEN_AUTH_TOKEN }}
+          avn service list
           
           echo "Getting service details..."
-          SERVICE_URI=$(avn service get --auth-token ${{ secrets.AIVEN_AUTH_TOKEN }} --format json ${{ env.AIVEN_SERVICE }} | jq -r '.service_uri')
+          SERVICE_URI=$(avn service get --format json ${{ env.AIVEN_SERVICE }} | jq -r '.service_uri')
           echo "Full SERVICE_URI: $SERVICE_URI"
           echo "SERVICE_URI length: ${#SERVICE_URI}"
           DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $4}')
