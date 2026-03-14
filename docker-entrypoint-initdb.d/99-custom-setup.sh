@@ -1,13 +1,13 @@
 #!/bin/bash
 set -e
 
-# Custom setup script that runs after all schema files are loaded
-# This ensures proper database initialization and creates sample data if needed
+# Custom setup script that runs after database initialization
+# This executes all schema files in the correct order
 
 echo "🔧 Running custom Espresso ML database setup..."
 
 # Wait for PostgreSQL to be ready
-until pg_isready -h localhost -p 5432 -U "$POSTGRES_USER"; do
+until pg_isready -U "$POSTGRES_USER"; do
     echo "⏳ Waiting for PostgreSQL to be ready..."
     sleep 2
 done
@@ -59,15 +59,17 @@ fi
     GRANT USAGE ON SCHEMA public TO PUBLIC;
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO PUBLIC;
     GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO PUBLIC;
-    GRANT SELECT ON ALL VIEWS IN SCHEMA public TO PUBLIC;
 
-    -- Set default privileges for future objects
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO PUBLIC;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO PUBLIC;
-
+    -- Create a simple function to check database status
+    CREATE OR REPLACE FUNCTION database_status()
+    RETURNS TEXT AS \$\$
+    BEGIN
+        RETURN 'Espresso ML database is ready';
+    END;
+    \$\$ LANGUAGE plpgsql;
 EOSQL
 
-echo "✅ Custom Espresso ML database setup completed successfully!"
+echo "✅ Espresso ML database setup completed successfully!"
 
 # Create a marker file to indicate successful initialization
 touch /var/lib/postgresql/data/espresso-ml-initialized

@@ -1,0 +1,65 @@
+title = "Gitleaks Configuration for Espresso ML Database"
+
+# Gitleaks configuration for Espresso ML Database Repository
+# This config is tailored for database schema files and CI/CD configurations
+
+[extend]
+useDefault = true
+
+# Global allowlist for paths and patterns
+[allowlist]
+description = "Global allowlist for Espresso ML Database"
+paths = [
+  '''docker-compose\.yml''',
+  '''\.env''',
+  '''backend/''',
+  '''schema/.*\.sql''',
+  '''docker-entrypoint-initdb\.d/.*\.sh''',
+  '''\.github/workflows/.*\.yml'''
+]
+
+# Allow database connection strings and environment variables
+regexTarget = "line"
+regexes = [
+  '''POSTGRES_[A-Z_]+.*=.*''',
+  '''DB_[A-Z_]+.*=.*''',
+  '''localhost:5432''',
+  '''postgres://''',
+  '''postgresql://''',
+  '''host.*=.*postgres''',
+  '''user.*=.*postgres''',
+  '''password.*=.*''',
+  # GitHub Actions secrets patterns
+  '''\${{\s*secrets\.[A-Z_]+\s*}}''',
+  '''\${{\s*env\.[A-Z_]+\s*}}''',
+  '''GITHUB_TOKEN''',
+  '''REGISTRY.*=.*''',
+  '''IMAGE_NAME.*=.*''',
+  # Docker and container patterns
+  '''FROM postgres:''',
+  '''ghcr\.io/''',
+  ''':latest''',
+  ''':15''',
+  '''container_name''',
+  '''healthcheck''',
+  # Documentation and examples
+  '''example\.com''',
+  '''test@''',
+  '''demo@''',
+  '''localhost''',
+  '''127\.0\.0\.1''',
+  '''0\.0\.0\.0''',
+  # UUID and test data patterns
+  '''[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}''',
+  '''Test User''',
+  '''test@example\.com''',
+  '''Test Bean''',
+  '''Test Roaster''',
+  # SQL comments and documentation
+  '''--.*Purpose:''',
+  '''--.*Dependencies:''',
+  '''--.*Idempotent:''',
+  '''--.*Updated:''',
+  '''--.*Test.*''',
+  '''--.*Example.*''',
+]

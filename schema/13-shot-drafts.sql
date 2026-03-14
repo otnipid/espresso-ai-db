@@ -34,11 +34,14 @@ CREATE INDEX IF NOT EXISTS idx_shot_drafts_updated_at ON shot_drafts(updated_at)
 
 -- Add cleanup trigger for expired drafts
 CREATE OR REPLACE FUNCTION cleanup_expired_drafts()
-RETURNS void AS $$
+RETURNS TRIGGER AS $$
 BEGIN
+    -- Auto-expire old active drafts when this trigger fires
     UPDATE shot_drafts 
     SET status = 'expired' 
     WHERE status = 'active' AND expires_at < NOW();
+    
+    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 

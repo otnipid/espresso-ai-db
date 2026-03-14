@@ -5,8 +5,6 @@ This guide shows how to set up PostgreSQL locally for integration testing with y
 ## Prerequisites
 
 - Docker and Docker Compose installed
-- kubectl installed (for Kubernetes testing)
-- Helm 3.x installed
 
 ## Option 1: Docker Compose (Recommended for Local Development)
 
@@ -30,7 +28,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - ./schema:/docker-entrypoint-initdb.d/schema
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U espresso_dev_user -d espresso_ml_development"]
       interval: 10s
@@ -41,79 +39,13 @@ volumes:
   postgres_data:
 ```
 
-### 2. Create Initialization Script
+### 2. Schema Files
 
-Create `scripts/init-db.sql`:
-
-```sql
--- Espresso ML Database Schema
--- This file initializes the database with required tables
-
--- =========================
--- BEANS TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS beans (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name TEXT NOT NULL,
-    roaster TEXT,
-    country TEXT,
-    region TEXT,
-    farm TEXT,
-    varietal TEXT,
-    processing_method TEXT,
-    flavor_notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- =========================
--- USERS TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    username TEXT UNIQUE NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    role TEXT DEFAULT 'user',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- =========================
--- TASTING_NOTES TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS tasting_notes (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    bean_id UUID REFERENCES beans(id) ON DELETE CASCADE,
-    rating INTEGER CHECK (rating >= 1 AND rating <= 10),
-    notes TEXT,
-    tasting_date DATE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- =========================
--- INDEXES
--- =========================
-CREATE INDEX IF NOT EXISTS idx_beans_name ON beans(name);
-CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-CREATE INDEX IF NOT EXISTS idx_tasting_notes_user ON tasting_notes(user_id);
-CREATE INDEX IF NOT EXISTS idx_tasting_notes_bean ON tasting_notes(bean_id);
-
--- =========================
--- SAMPLE DATA
--- =========================
-INSERT INTO beans (name, roaster, country, region) VALUES 
-('Ethiopia Yirgacheffe', 'Test Roaster', 'Ethiopia', 'Yirgacheffe'),
-('Colombia Huila', 'Test Roaster', 'Colombia', 'Huila');
-
-INSERT INTO users (username, email, password_hash, role) VALUES 
-('testuser', 'test@example.com', '$2b$12$hashedpassword...', 'user');
-
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-```
+The database schema is automatically initialized from the files in the `schema/` directory:
+- `01-extensions.sql` - PostgreSQL extensions
+- `02-users.sql` - User management tables
+- `03-beans.sql` - Coffee bean tables
+- And more...
 
 ### 3. Start PostgreSQL
 
