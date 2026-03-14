@@ -103,10 +103,11 @@ jobs:
           echo "Getting service details..."
           SERVICE_URI=$(avn service get ${{ env.AIVEN_SERVICE }} --format '{service_uri}')
           echo "Full SERVICE_URI: $SERVICE_URI"
-          DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:]' '{print $4}')
-          DB_PORT=$(echo "$SERVICE_URI" | awk -F'[@:]' '{print $5}')
-          DB_NAME=$(echo "$SERVICE_URI" | awk -F'[/]' '{print $4}')
-          DB_USER=${{ vars.AIVEN_DB_USER }}
+          # Extract connection info from URI
+          DB_USER=$(echo "$SERVICE_URI" | sed -E 's#postgres://([^:]+):.*#\1#')
+          DB_HOST=$(echo "$SERVICE_URI" | sed -E 's#postgres://[^:]+:[^@]+@([^:/]+):.*#\1#')
+          DB_PORT=$(echo "$SERVICE_URI" | sed -E 's#postgres://[^:]+:[^@]+@[^:]+:([0-9]+)/.*#\1#')
+          DB_NAME=$(echo "$SERVICE_URI" | sed -E 's#.*/([^/?]+).*#\1#')
           DB_PASSWORD=${{ secrets.AIVEN_DB_PASSWORD }}
           
           echo " Connecting to Aiven PostgreSQL: $DB_HOST:$DB_PORT/$DB_NAME"
@@ -115,7 +116,8 @@ jobs:
           MAX_WAIT=60   # in seconds
           ELAPSED=0
 
-          PGSSLMODE=require until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$CLEAN_DB_NAME"; do
+          # Wait for DB with SSL enabled
+          PGSSLMODE=require until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME"; do
               if [ "$ELAPSED" -ge "$MAX_WAIT" ]; then
                   echo "❌ Database did not become ready after $MAX_WAIT seconds"
                   exit 1
@@ -126,7 +128,7 @@ jobs:
           done
 
           echo "✅ Database is ready!"
-          
+
           # Deploy schema files in order
           cd schema
           
