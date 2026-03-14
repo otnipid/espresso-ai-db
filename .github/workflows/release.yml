@@ -7,7 +7,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: espresso-ml-infrastructure
+  IMAGE_NAME: espresso-ml-database
 
 jobs:
   create-release:

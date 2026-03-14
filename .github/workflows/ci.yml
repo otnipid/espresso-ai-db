@@ -1,4 +1,4 @@
-name: Infrastructure CI Pipeline
+name: Database CI Pipeline
 
 on:
   push:
