@@ -106,13 +106,13 @@ jobs:
           echo "Token present? ${AIVEN_AUTH_TOKEN:+YES}"
 
           echo "Authenticating with Aiven..."
-          avn user info --auth-token "${{ secrets.AIVEN_AUTH_TOKEN }}"
+          avn --auth-token "${{ secrets.AIVEN_AUTH_TOKEN }}" user info
           
           echo "Testing service access..."
-          avn service list
+          avn --auth-token "${{ secrets.AIVEN_AUTH_TOKEN }}" service list
           
           echo "Getting service details..."
-          SERVICE_URI=$(avn service get --format json ${{ env.AIVEN_SERVICE }} | jq -r '.service_uri')
+          SERVICE_URI=$(avn --auth-token "${{ secrets.AIVEN_AUTH_TOKEN }}" service get --format json ${{ env.AIVEN_SERVICE }} | jq -r '.service_uri')
           echo "Full SERVICE_URI: $SERVICE_URI"
           echo "SERVICE_URI length: ${#SERVICE_URI}"
           DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $4}')
