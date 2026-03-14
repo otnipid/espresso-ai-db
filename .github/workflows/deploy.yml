@@ -103,7 +103,6 @@ jobs:
           echo "Getting service details..."
           SERVICE_URI=$(avn service get ${{ env.AIVEN_SERVICE }} --format '{service_uri}')
           echo "Full SERVICE_URI: $SERVICE_URI"
-          echo "SERVICE_URI length: ${#SERVICE_URI}"
           DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:]' '{print $4}')
           DB_PORT=$(echo "$SERVICE_URI" | awk -F'[@:]' '{print $5}')
           DB_NAME=$(echo "$SERVICE_URI" | awk -F'[/]' '{print $4}')
@@ -114,8 +113,8 @@ jobs:
           echo "📍 Connecting to Aiven PostgreSQL: $DB_HOST:$DB_PORT/$DB_NAME"
           
           # Wait for database to be ready
-          CLEAN_DB_NAME=$(echo "$SERVICE_URI" | cut -d'/' -f1)
-          until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$CLEAN_DB_NAME"; do
+          CLEAN_DB_NAME=$(echo "$SERVICE_URI" | sed -E 's#.*/([^/?]+).*#\1#')
+          until pg_isready "$SERVICE_URI"; do
             echo "⏳ Waiting for Aiven PostgreSQL to be ready..."
             sleep 5
           done
