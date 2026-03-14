@@ -95,7 +95,6 @@ jobs:
           echo " Deploying database schema to Aiven PostgreSQL (v${{ env.DEPLOY_VERSION }})..."
           
           # Get Aiven service connection details
-          echo "Authenticating with Aiven..."
           echo "Using service: ${{ env.AIVEN_SERVICE }}"
           
           echo "Testing service access..."
@@ -105,9 +104,9 @@ jobs:
           SERVICE_URI=$(avn service get ${{ env.AIVEN_SERVICE }} --format '{service_uri}')
           echo "Full SERVICE_URI: $SERVICE_URI"
           echo "SERVICE_URI length: ${#SERVICE_URI}"
-          DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $4}')
-          DB_PORT=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $5}')
-          DB_NAME=$(echo "$SERVICE_URI" | awk -F'[/] '{print $4}')
+          DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:]' '{print $4}')
+          DB_PORT=$(echo "$SERVICE_URI" | awk -F'[@:]' '{print $5}')
+          DB_NAME=$(echo "$SERVICE_URI" | awk -F'[/]' '{print $4}')
           DB_USER=${{ vars.AIVEN_DB_USER }}
           DB_PASSWORD=${{ secrets.AIVEN_DB_PASSWORD }}
           
@@ -143,9 +142,9 @@ jobs:
           
           # Get connection details
           SERVICE_URI=$(avn service get ${{ env.AIVEN_SERVICE }} --format '{service_uri}' | tr -d '"')
-          DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $4}')
-          DB_PORT=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $5}')
-          DB_NAME=$(echo "$SERVICE_URI" | awk -F'[/] '{print $4}')
+          DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:]' '{print $4}')
+          DB_PORT=$(echo "$SERVICE_URI" | awk -F'[@:]' '{print $5}')
+          DB_NAME=$(echo "$SERVICE_URI" | awk -F'[/]' '{print $4}')
           DB_USER=${{ vars.AIVEN_DB_USER }}
           DB_PASSWORD=${{ secrets.AIVEN_DB_PASSWORD }}
           
