@@ -1,82 +1,169 @@
-name: Deploy Infrastructure
+name: Deploy Database
 
 on:
   workflow_run:
-    workflows: ["Infrastructure CI Pipeline"]
+    workflows: ["Database CI Pipeline"]
     types:
       - completed
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
     inputs:
       environment:
         description: 'Deployment environment'
         required: true
-        default: 'production'
+        default: 'development'
         type: choice
         options:
-          - production
           - development
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: espresso-ml-infrastructure
+  IMAGE_NAME: espresso-ml-database
 
 jobs:
-  deploy-production:
-    name: Deploy to Production
+  version-management:
+    name: Version Management
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'production'
-    environment: production
+    if: github.ref == 'refs/heads/develop' && github.event.workflow_run.conclusion == 'success'
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      version-type: ${{ steps.version.outputs.version-type }}
+      release-notes: ${{ steps.version.outputs.release-notes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Analyze and Bump Version
+        id: version
+        run: |
+          chmod +x scripts/version-manager.sh
+          ./scripts/version-manager.sh
+          
+          # Capture outputs
+          VERSION=$(./scripts/version-manager.sh main | grep "🎯 Next version:" | sed 's/.*Next version: //' | tr -d '\n')
+          VERSION_TYPE=$(./scripts/version-manager.sh main | grep "🎯 Next version:" | sed 's/.*(\(.*\) release.*/\1/' | tr -d '\n')
+          RELEASE_NOTES=$(./scripts/version-manager.sh main | grep "📋 Release notes generated:" | sed 's/.*Release notes generated: //' | tr -d '\n')
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version-type=$VERSION_TYPE" >> $GITHUB_OUTPUT
+          echo "release-notes=$RELEASE_NOTES" >> $GITHUB_OUTPUT
+
+      - name: Commit Version Changes
+        run: |
+          git add .
+          git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
+          git push origin develop
+
+      - name: Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts-${{ steps.version.outputs.version }}
+          path: |
+            release-notes/
+            CHANGELOG.md
+            Dockerfile
+          retention-days: 30
+
+  deploy-development:
+    name: Deploy to Development (Aiven)
+    runs-on: ubuntu-latest
+    needs: version-management
+    if: github.ref == 'refs/heads/develop' || github.event.inputs.environment == 'development'
+    environment: development
     env:
-      NAMESPACE: espresso-production
-      ENVIRONMENT: production
+      AIVEN_PROJECT: ${{ vars.AIVEN_PROJECT_NAME }}
+      AIVEN_SERVICE: ${{ vars.AIVEN_SERVICE_NAME }}
+      DEPLOY_VERSION: ${{ needs.version-management.outputs.version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: 'v1.31.0'
-
-      - name: Set kubectl context
-        uses: azure/k8s-set-context@v3
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBE_CONFIG_PROD }}
-
-      - name: Deploy PostgreSQL
+      - name: Setup Aiven CLI
         run: |
-          cd charts/postgesql
-          helm dependency update
-          helm upgrade --install espresso-db . \
-            --namespace ${{ env.NAMESPACE }} \
-            --create-namespace \
-            --values values-${{ env.ENVIRONMENT }}.yaml \
-            --set postgresql.password=${{ secrets.POSTGRES_PASSWORD_PROD }} \
-            --set postgresql.user=${{ secrets.POSTGRES_USER_PROD }} \
-            --set postgresql.db=${{ secrets.POSTGRES_DB_PROD }} \
-            --wait \
-            --timeout=10m
+          # Install Aiven CLI
+          curl -Ls https://github.com/aiven/aiven-client/releases/latest/download/aiven-client.tar.gz | tar xz
+          sudo mv avn /usr/local/bin/
+          avn --version
 
-      - name: Verify Deployment
+      - name: Authenticate with Aiven
         run: |
-          kubectl get pods -n ${{ env.NAMESPACE }}
-          kubectl get services -n ${{ env.NAMESPACE }}
-          kubectl get pvc -n ${{ env.NAMESPACE }}
-          
-      - name: Run Health Checks
+          # Authenticate using Aiven token
+          echo "${{ secrets.AIVEN_TOKEN }}" | avn user login --token
+
+      - name: Deploy Schema to Aiven PostgreSQL
         run: |
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=espresso-db -n ${{ env.NAMESPACE }} --timeout=300s
+          echo "🚀 Deploying database schema to Aiven PostgreSQL (v${{ env.DEPLOY_VERSION }})..."
           
-          # Test database connection
-          kubectl port-forward -n ${{ env.NAMESPACE }} svc/espresso-db-postgres 5432:5432 &
-          PF_PID=$!
-          sleep 10
+          # Get Aiven service connection details
+          SERVICE_URI=$(avn service get --format json ${{ env.AIVEN_SERVICE }} | jq -r '.service_uri')
+          DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $4}')
+          DB_PORT=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $5}')
+          DB_NAME=$(echo "$SERVICE_URI" | awk -F'[/] '{print $4}')
+          DB_USER=${{ vars.AIVEN_DB_USER }}
+          DB_PASSWORD=${{ secrets.AIVEN_DB_PASSWORD }}
           
-          # Test with appropriate credentials
-          PGPASSWORD=${{ secrets.POSTGRES_PASSWORD_PROD }} psql -h localhost -U ${{ secrets.POSTGRES_USER_PROD }} -d ${{ secrets.POSTGRES_DB_PROD }} -c "SELECT version();"
-          kill $PF_PID
+          echo "📍 Connecting to Aiven PostgreSQL: $DB_HOST:$DB_PORT/$DB_NAME"
+          
+          # Wait for database to be ready
+          until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME"; do
+            echo "⏳ Waiting for Aiven PostgreSQL to be ready..."
+            sleep 5
+          done
+          
+          # Deploy schema files in order
+          cd schema
+          
+          echo "📋 Deploying schema files..."
+          for file in 0*.sql; do
+            echo "📄 Applying $file..."
+            PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$file"
+            if [ $? -eq 0 ]; then
+              echo "✅ Successfully applied $file"
+            else
+              echo "❌ Failed to apply $file"
+              exit 1
+            fi
+          done
+          
+          echo "🎉 Schema deployment completed successfully!"
+
+      - name: Run Database Health Checks
+        run: |
+          echo "🔍 Running database health checks..."
+          
+          # Get connection details
+          SERVICE_URI=$(avn service get --format json ${{ env.AIVEN_SERVICE }} | jq -r '.service_uri')
+          DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $4}')
+          DB_PORT=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $5}')
+          DB_NAME=$(echo "$SERVICE_URI" | awk -F'[/] '{print $4}')
+          DB_USER=${{ vars.AIVEN_DB_USER }}
+          DB_PASSWORD=${{ secrets.AIVEN_DB_PASSWORD }}
+          
+          # Test basic connectivity
+          PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT version();"
+          
+          # Verify tables were created
+          TABLE_COUNT=$(PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | tr -d ' ')
+          echo "📊 Found $TABLE_COUNT tables in database"
+          
+          # Test basic data insertion
+          PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" << 'EOF'
+          -- Test users table
+          INSERT INTO users (name, email) VALUES ('Health Check User', 'health-check@example.com') ON CONFLICT (email) DO NOTHING;
+          
+          -- Verify data integrity
+          SELECT COUNT(*) as user_count FROM users;
+          EOF
+          
+          echo "✅ Database health checks passed!"
 
       - name: Update Deployment Status
         uses: actions/github-script@v7
@@ -88,49 +175,15 @@ jobs:
               sha: context.sha,
               state: 'success',
               target_url: 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}',
-              description: 'PostgreSQL production deployment successful',
-              context: 'infrastructure/deployment'
+              description: 'PostgreSQL development deployment to Aiven successful (v${{ env.DEPLOY_VERSION }})',
+              context: 'database/deployment'
             });
 
-  deploy-development:
-    name: Deploy to Development
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop' || github.event.inputs.environment == 'development'
-    environment: development
-    env:
-      NAMESPACE: espresso-development
-      ENVIRONMENT: development
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: 'v1.31.0'
-
-      - name: Set kubectl context
-        uses: azure/k8s-set-context@v3
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBE_CONFIG_DEVELOPMENT }}
-
-      - name: Deploy PostgreSQL
+      - name: Notify Deployment Success
         run: |
-          cd charts/postgesql
-          helm dependency update
-          helm upgrade --install espresso-db . \
-            --namespace ${{ env.NAMESPACE }} \
-            --create-namespace \
-            --values values-${{ env.ENVIRONMENT }}.yaml \
-            --set postgresql.password=${{ secrets.POSTGRES_PASSWORD_DEVELOPMENT }} \
-            --set postgresql.user=${{ secrets.POSTGRES_USER_DEVELOPMENT }} \
-            --set postgresql.db=${{ secrets.POSTGRES_DB_DEVELOPMENT }} \
-            --wait \
-            --timeout=10m
-
-      - name: Verify Deployment
-        run: |
-          kubectl get pods -n ${{ env.NAMESPACE }}
-          kubectl get services -n ${{ env.NAMESPACE }}
+          echo "🎉 Aiven PostgreSQL deployment completed successfully!"
+          echo "📋 Service: ${{ env.AIVEN_SERVICE }}"
+          echo "🏢 Project: ${{ env.AIVEN_PROJECT }}"
+          echo "🌐 Database is ready for development use!"
+          echo "🏷️  Version: ${{ env.DEPLOY_VERSION }}"
           

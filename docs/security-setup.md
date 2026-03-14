@@ -1,6 +1,6 @@
 # Security Setup Guide
 
-This document outlines the required GitHub secrets and security configurations for the Espresso ML infrastructure.
+This document outlines the required GitHub secrets and security configurations for the Espresso ML database.
 
 ## 🔐 Required GitHub Secrets
 

@@ -1,10 +1,10 @@
 # API Integration with PostgreSQL Helm Chart
 
-This guide explains how to configure your API (in separate repositories) to consume new releases of the PostgreSQL Helm chart deployed from this infrastructure repository.
+This guide explains how to configure your API (in separate repositories) to consume new releases of the PostgreSQL database deployed from this database repository.
 
 ## Overview
 
-The PostgreSQL infrastructure deploys a Helm chart that creates:
+The PostgreSQL database deploys a Helm chart that creates:
 - **Database Service**: `espresso-db-postgres.{namespace}.svc.cluster.local:5432`
 - **Persistent Storage**: PVC for data persistence
 - **Configuration**: Environment-specific secrets and settings
@@ -205,7 +205,7 @@ engine = create_engine(
 
 ## Deployment Workflow Integration
 
-### 1. Infrastructure Deployment (This Repository)
+### 1. Database Deployment (This Repository)
 
 ```yaml
 # .github/workflows/deploy.yml
@@ -222,7 +222,7 @@ name: Deploy API
 
 on:
   workflow_run:
-    workflows: ["Deploy Infrastructure"]  # Wait for infrastructure
+    workflows: ["Deploy Database"]  # Wait for database
     types:
       - completed
     branches: [main, develop]
@@ -421,10 +421,10 @@ logger.info('Database connected', {
 
 ## Release Process
 
-1. **Infrastructure Update**: Deploy new PostgreSQL chart version
+1. **Database Update**: Deploy new PostgreSQL chart version
 2. **Database Migration**: Run any required database migrations
 3. **API Update**: Deploy new API version with updated configurations
 4. **Verification**: Test API connectivity and functionality
 5. **Rollback**: Have rollback procedures ready for both database and API
 
-This integration ensures your API can reliably consume PostgreSQL database releases deployed from the infrastructure repository.
+This integration ensures your API can reliably consume PostgreSQL database releases deployed from the database repository.
