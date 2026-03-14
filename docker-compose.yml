@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: ghcr.io/otnipid/espresso-ml-postgres:latest
+    image: ghcr.io/otnipid/espresso-ai-db-postgres:latest
     # Fallback to official image if custom image is not available
     # image: postgres:15
     container_name: espresso_ml_db

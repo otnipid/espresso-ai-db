@@ -7,7 +7,7 @@ set -e
 # Default values
 TAG=${1:-latest}
 REGISTRY=${2:-ghcr.io/otnipid}
-IMAGE_NAME="espresso-ml-postgres"
+IMAGE_NAME="espresso-ai-db-postgres"
 
 # Colors for output
 RED='\033[0;31m'
