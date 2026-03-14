@@ -99,10 +99,10 @@ jobs:
           echo "Using service: ${{ env.AIVEN_SERVICE }}"
           
           echo "Testing service access..."
-          avn service list --format json
+          avn service list
           
           echo "Getting service details..."
-          SERVICE_URI=$(avn service get ${{ env.AIVEN_SERVICE }} --format json | jq -r '.service_uri')
+          SERVICE_URI=$(avn service get ${{ env.AIVEN_SERVICE }} --format '{service_uri}')
           echo "Full SERVICE_URI: $SERVICE_URI"
           echo "SERVICE_URI length: ${#SERVICE_URI}"
           DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $4}')
@@ -142,7 +142,7 @@ jobs:
           echo "🔍 Running database health checks..."
           
           # Get connection details
-          SERVICE_URI=$(avn service get --format json ${{ env.AIVEN_SERVICE }} | jq -r '.service_uri')
+          SERVICE_URI=$(avn service get ${{ env.AIVEN_SERVICE }} --format '{service_uri}' | tr -d '"')
           DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $4}')
           DB_PORT=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $5}')
           DB_NAME=$(echo "$SERVICE_URI" | awk -F'[/] '{print $4}')
