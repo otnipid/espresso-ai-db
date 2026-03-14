@@ -79,8 +79,8 @@ jobs:
     if: github.ref == 'refs/heads/develop' || github.event.inputs.environment == 'development'
     environment: development
     env:
-      AIVEN_PROJECT: ${{ secrets.AIVEN_PROJECT_NAME }}
-      AIVEN_SERVICE: ${{ secrets.AIVEN_SERVICE_NAME }}
+      AIVEN_PROJECT: ${{ vars.AIVEN_PROJECT_NAME }}
+      AIVEN_SERVICE: ${{ vars.AIVEN_SERVICE_NAME }}
       DEPLOY_VERSION: ${{ needs.version-management.outputs.version }}
     steps:
       - name: Checkout code
@@ -107,7 +107,7 @@ jobs:
           DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $4}')
           DB_PORT=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $5}')
           DB_NAME=$(echo "$SERVICE_URI" | awk -F'[/] '{print $4}')
-          DB_USER=${{ secrets.AIVEN_DB_USER }}
+          DB_USER=${{ vars.AIVEN_DB_USER }}
           DB_PASSWORD=${{ secrets.AIVEN_DB_PASSWORD }}
           
           echo "📍 Connecting to Aiven PostgreSQL: $DB_HOST:$DB_PORT/$DB_NAME"
@@ -144,7 +144,7 @@ jobs:
           DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $4}')
           DB_PORT=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $5}')
           DB_NAME=$(echo "$SERVICE_URI" | awk -F'[/] '{print $4}')
-          DB_USER=${{ secrets.AIVEN_DB_USER }}
+          DB_USER=${{ vars.AIVEN_DB_USER }}
           DB_PASSWORD=${{ secrets.AIVEN_DB_PASSWORD }}
           
           # Test basic connectivity
