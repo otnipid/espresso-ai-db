@@ -17,15 +17,14 @@ ENV POSTGRES_DB=espresso_ml \
 # Copy schema files to initialization directory (before user switch)
 COPY schema/ /docker-entrypoint-initdb.d/schema/
 COPY docker-entrypoint-initdb.d/99-custom-setup.sh /docker-entrypoint-initdb.d/99-custom-setup.sh
+COPY healthcheck.sh /healthcheck.sh
 
 # Set permissions and switch to non-root user
 RUN chmod +x /docker-entrypoint-initdb.d/99-custom-setup.sh && \
-    chown -R appuser:appuser /docker-entrypoint-initdb.d/
+    chown -R appuser:appuser /docker-entrypoint-initdb.d/ && \
+    chmod +x /healthcheck.sh && \
+    chown appuser:appuser /healthcheck.sh
 USER appuser
-
-# Add health check script (as appuser)
-COPY healthcheck.sh /healthcheck.sh
-RUN chmod +x /healthcheck.sh
 
 # Set healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
