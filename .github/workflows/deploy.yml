@@ -102,10 +102,10 @@ jobs:
           echo "Using service: ${{ env.AIVEN_SERVICE }}"
           
           echo "Testing service access..."
-          avn service list
+          avn --auth-token ${{ secrets.AIVEN_AUTH_TOKEN }} service list
           
           echo "Getting service details..."
-          SERVICE_URI=$(avn service get --format json ${{ env.AIVEN_SERVICE }} | jq -r '.service_uri')
+          SERVICE_URI=$(avn --auth-token ${{ secrets.AIVEN_AUTH_TOKEN }} service get --format json ${{ env.AIVEN_SERVICE }} | jq -r '.service_uri')
           echo "Full SERVICE_URI: $SERVICE_URI"
           echo "SERVICE_URI length: ${#SERVICE_URI}"
           DB_HOST=$(echo "$SERVICE_URI" | awk -F'[@:] '{print $4}')
