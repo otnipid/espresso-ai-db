@@ -97,14 +97,9 @@ jobs:
           # Get Aiven service connection details
           echo "Authenticating with Aiven..."
           echo "Using service: ${{ env.AIVEN_SERVICE }}"
-
-          echo "Token present? ${AVN_AUTH_TOKEN:+YES}"
-
-          echo "Authenticating with Aiven..."
-          avn user info
           
           echo "Testing service access..."
-          avn service list
+          avn service list --format json
           
           echo "Getting service details..."
           SERVICE_URI=$(avn service get --format json ${{ env.AIVEN_SERVICE }} | jq -r '.service_uri')
