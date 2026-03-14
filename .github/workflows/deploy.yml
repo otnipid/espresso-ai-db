@@ -112,12 +112,20 @@ jobs:
           echo " Connecting to Aiven PostgreSQL: $DB_HOST:$DB_PORT/$DB_NAME"
           echo "📍 Connecting to Aiven PostgreSQL: $DB_HOST:$DB_PORT/$DB_NAME"
           
-          # Wait for database to be ready
-          CLEAN_DB_NAME=$(echo "$SERVICE_URI" | sed -E 's#.*/([^/?]+).*#\1#')
-          until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$CLEAN_DB_NAME"; do
-            echo "⏳ Waiting for Aiven PostgreSQL to be ready..."
-            sleep 5
+          MAX_WAIT=60   # in seconds
+          ELAPSED=0
+
+          PGSSLMODE=require until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$CLEAN_DB_NAME"; do
+              if [ "$ELAPSED" -ge "$MAX_WAIT" ]; then
+                  echo "❌ Database did not become ready after $MAX_WAIT seconds"
+                  exit 1
+              fi
+              echo "⏳ Waiting for Aiven PostgreSQL to be ready..."
+              sleep 5
+              ELAPSED=$((ELAPSED + 5))
           done
+
+          echo "✅ Database is ready!"
           
           # Deploy schema files in order
           cd schema
