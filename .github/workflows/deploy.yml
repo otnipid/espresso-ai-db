@@ -83,10 +83,8 @@ jobs:
 
       - name: Setup Aiven CLI
         run: |
-          # Install Aiven CLI
-          wget https://github.com/aiven/aiven-client/releases/latest/download/aiven-client.tar.gz
-          tar -xzf aiven-client.tar.gz
-          sudo mv avn /usr/local/bin/
+          # Install Aiven CLI using pip (more reliable)
+          pip install aiven-client
           avn --version
 
       - name: Authenticate with Aiven
