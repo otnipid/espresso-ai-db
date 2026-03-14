@@ -13,7 +13,7 @@ This guide explains how to configure the GitHub Actions workflow to deploy the E
 Add the following secrets to your GitHub repository settings:
 
 ### 1. Aiven Authentication
-- **`AIVEN_TOKEN`**: Your Aiven personal access token
+- **`AIVEN_AUTH_TOKEN`**: Your Aiven personal access token
   - How to get: Go to Aiven Console → Account → Access tokens → Create new token
   - Required permissions: `service:read`, `service:write`
 
@@ -72,8 +72,8 @@ After deployment, you can verify by:
 ### Common Issues
 
 **Authentication Failed**
-- Check that `AIVEN_TOKEN` is correct and has proper permissions
-- Ensure the token hasn't expired
+- Check that `AIVEN_AUTH_TOKEN` is correct and has proper permissions
+- Ensure token hasn't expired
 
 **Service Not Found**
 - Verify `AIVEN_PROJECT_NAME` and `AIVEN_SERVICE_NAME` are correct
@@ -102,7 +102,7 @@ After deployment, you can verify by:
 
 ```bash
 # Example values (replace with your actual values)
-AIVEN_TOKEN="avn_xxxxx_your_token_here"
+AIVEN_AUTH_TOKEN="avn_xxxxx_your_token_here"
 AIVEN_PROJECT_NAME="espresso-ml-dev"
 AIVEN_SERVICE_NAME="espresso-postgres-dev"
 AIVEN_DB_USER="avnadmin"
