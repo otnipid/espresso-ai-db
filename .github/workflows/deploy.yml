@@ -114,7 +114,7 @@ jobs:
           
           # Wait for database to be ready
           CLEAN_DB_NAME=$(echo "$SERVICE_URI" | sed -E 's#.*/([^/?]+).*#\1#')
-          until pg_isready "$SERVICE_URI"; do
+          until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$CLEAN_DB_NAME"; do
             echo "⏳ Waiting for Aiven PostgreSQL to be ready..."
             sleep 5
           done
