@@ -25,7 +25,7 @@ jobs:
   version-management:
     name: Version Management
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop' && github.event.workflow_run.conclusion == 'success'
+    if: (github.ref == 'refs/heads/develop' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch'
     outputs:
       version: ${{ steps.version.outputs.version }}
       version-type: ${{ steps.version.outputs.version-type }}
@@ -77,7 +77,7 @@ jobs:
     name: Deploy to Development (Aiven)
     runs-on: ubuntu-latest
     needs: version-management
-    if: github.ref == 'refs/heads/develop' || github.event.inputs.environment == 'development'
+    if: (github.ref == 'refs/heads/develop' || github.event.inputs.environment == 'development') && (needs.version-management.result == 'success' || github.event_name == 'workflow_dispatch')
     environment: development
     env:
       AIVEN_PROJECT: ${{ vars.AIVEN_PROJECT_NAME }}
