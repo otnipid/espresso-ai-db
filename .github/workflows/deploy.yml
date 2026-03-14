@@ -90,7 +90,7 @@ jobs:
       - name: Authenticate with Aiven
         run: |
           # Authenticate using Aiven token
-          avn --auth-token ${{ secrets.AIVEN_AUTH_TOKEN }} user whoami
+          avn --auth-token ${{ secrets.AIVEN_AUTH_TOKEN }} user info
 
       - name: Deploy Schema to Aiven PostgreSQL
         run: |
