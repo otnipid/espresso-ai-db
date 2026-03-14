@@ -106,7 +106,7 @@ jobs:
           echo "Token present? ${AIVEN_AUTH_TOKEN:+YES}"
 
           echo "Authenticating with Aiven..."
-          avn user login --token $AIVEN_AUTH_TOKEN
+          avn --auth-token "$AIVEN_AUTH_TOKEN" user
           
           echo "Testing service access..."
           avn service list
