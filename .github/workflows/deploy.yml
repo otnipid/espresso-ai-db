@@ -90,7 +90,7 @@ jobs:
 
       - name: Deploy Schema to Aiven PostgreSQL
         env:
-          AIVEN_AUTH_TOKEN: ${{ secrets.AIVEN_AUTH_TOKEN }}
+          AVN_AUTH_TOKEN: ${{ secrets.AIVEN_AUTH_TOKEN }}
         run: |
           echo " Deploying database schema to Aiven PostgreSQL (v${{ env.DEPLOY_VERSION }})..."
           
@@ -153,13 +153,17 @@ jobs:
           echo "🔍 Running database health checks..."
           
           # Get connection details
-          SERVICE_URI=$(avn service get ${{ env.AIVEN_SERVICE }} --format '{service_uri}' | tr -d '"')
+          SERVICE_URI=$(avn service get ${{ env.AIVEN_SERVICE }} --format '{service_uri}')
+          echo "Debug: Full SERVICE_URI: $SERVICE_URI"
+          
           # Extract connection info from URI
           DB_USER=$(echo "$SERVICE_URI" | sed -E 's#postgres://([^:]+):.*#\1#')
           DB_HOST=$(echo "$SERVICE_URI" | sed -E 's#postgres://[^:]+:[^@]+@([^:/]+):.*#\1#')
           DB_PORT=$(echo "$SERVICE_URI" | sed -E 's#postgres://[^:]+:[^@]+@[^:]+:([0-9]+)/.*#\1#')
           DB_NAME=$(echo "$SERVICE_URI" | sed -E 's#.*/([^/?]+).*#\1#')
           DB_PASSWORD=${{ secrets.AIVEN_DB_PASSWORD }}
+          
+          echo "Debug: DB_HOST=$DB_HOST, DB_PORT=$DB_PORT, DB_NAME=$DB_NAME, DB_USER=$DB_USER"
           
           # Test basic connectivity
           PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT version();"
