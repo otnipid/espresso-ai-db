@@ -114,7 +114,8 @@ jobs:
           echo "📍 Connecting to Aiven PostgreSQL: $DB_HOST:$DB_PORT/$DB_NAME"
           
           # Wait for database to be ready
-          until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME"; do
+          CLEAN_DB_NAME=$(echo "$SERVICE_URI" | cut -d'/' -f1)
+          until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$CLEAN_DB_NAME"; do
             echo "⏳ Waiting for Aiven PostgreSQL to be ready..."
             sleep 5
           done
@@ -125,7 +126,7 @@ jobs:
           echo "📋 Deploying schema files..."
           for file in 0*.sql; do
             echo "📄 Applying $file..."
-            PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$file"
+            PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$CLEAN_DB_NAME" -f "$file"
             if [ $? -eq 0 ]; then
               echo "✅ Successfully applied $file"
             else
@@ -149,14 +150,14 @@ jobs:
           DB_PASSWORD=${{ secrets.AIVEN_DB_PASSWORD }}
           
           # Test basic connectivity
-          PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT version();"
+          PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$CLEAN_DB_NAME" -c "SELECT version();"
           
           # Verify tables were created
-          TABLE_COUNT=$(PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | tr -d ' ')
+          TABLE_COUNT=$(PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$CLEAN_DB_NAME" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" | tr -d ' ')
           echo "📊 Found $TABLE_COUNT tables in database"
           
           # Test basic data insertion
-          PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" << 'EOF'
+          PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$CLEAN_DB_NAME" << 'EOF'
           -- Test users table
           INSERT INTO users (name, email) VALUES ('Health Check User', 'health-check@example.com') ON CONFLICT (email) DO NOTHING;
           
