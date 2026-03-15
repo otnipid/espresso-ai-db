@@ -5,7 +5,7 @@
 -- Dependencies: None
 -- Order: Files are numbered to ensure proper dependency order
 -- Idempotent: Yes (all sub-files use IF NOT EXISTS)
--- Updated: 2026-03-10 (CI fixes applied)
+-- Updated: 2026-03-15 (Fixed for Docker container loading)
 
 -- Load extensions first
 \i 01-extensions.sql
@@ -34,9 +34,4 @@
 \i 14-indexes.sql
 
 -- Schema creation complete
-SELECT 'Espresso ML schema created successfully' as status;# Updated: Wed Mar 11 19:22:45 AWST 2026
-# Updated again: Wed Mar 11 19:25:11 AWST 2026
-# Updated: Wed Mar 11 19:29:40 AWST 2026
-# Updated: Wed Mar 11 19:33:40 AWST 2026
-# Updated: Wed Mar 11 19:40:27 AWST 2026
-# Updated: Wed Mar 11 19:49:01 AWST 2026
+SELECT 'Espresso ML schema created successfully' as status;
