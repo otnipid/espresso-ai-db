@@ -187,6 +187,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up QEMU (for multi-architecture builds)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -216,6 +221,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -226,8 +232,8 @@ jobs:
           FIRST_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n 1)
           echo "Scanning tag: $FIRST_TAG"
           
-          # Pull the image first to ensure it's available locally
-          docker pull $FIRST_TAG
+          # Pull the AMD64 version of the image for scanning (runner is AMD64)
+          docker pull --platform linux/amd64 $FIRST_TAG
           
           # Scan the image
           docker run --rm \
@@ -236,6 +242,7 @@ jobs:
             aquasec/trivy:latest image \
             --format json \
             --output trivy-custom-image-results.json \
+            --platform linux/amd64 \
             $FIRST_TAG
 
       - name: Process Custom Image Scan Results
