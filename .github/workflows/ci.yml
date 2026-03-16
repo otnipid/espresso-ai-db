@@ -163,7 +163,7 @@ jobs:
           fi
 
       - name: Archive scan results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: security-scan-results
@@ -270,7 +270,7 @@ jobs:
           fi
 
       - name: Archive Custom Image Scan Results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: custom-postgres-scan-results
