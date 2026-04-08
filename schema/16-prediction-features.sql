@@ -1,6 +1,9 @@
--- Prediction Features Table
--- Stores engineered features for ML model training and prediction
--- Ensures consistency between training and prediction data
+-- ========================================
+-- PREDICTION FEATURES TABLE
+-- ========================================
+-- Purpose: Store engineered features for ML model training and prediction, ensuring consistency between training and inference
+-- Dependencies: shots table
+-- Idempotent: Yes (uses IF NOT EXISTS)
 
 CREATE TABLE IF NOT EXISTS prediction_features (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

@@ -1,5 +1,9 @@
--- ML Models Table
--- Stores trained machine learning models with versioning and performance metrics
+-- ========================================
+-- ML MODELS TABLE
+-- ========================================
+-- Purpose: Store trained machine learning models with versioning and performance metrics
+-- Dependencies: None (standalone table)
+-- Idempotent: Yes (uses IF NOT EXISTS)
 
 CREATE TABLE IF NOT EXISTS ml_models (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

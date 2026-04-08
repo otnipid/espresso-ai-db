@@ -1,5 +1,9 @@
--- User Feedback Table
--- Collects user feedback on predictions for adaptive learning
+-- ========================================
+-- USER FEEDBACK TABLE
+-- ========================================
+-- Purpose: Collect user feedback on predictions for adaptive learning
+-- Dependencies: shots table
+-- Idempotent: Yes (uses IF NOT EXISTS)
 
 CREATE TABLE IF NOT EXISTS user_feedback (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
