@@ -239,7 +239,7 @@ jobs:
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v ${{ github.workspace }}:/src \
-            aquasec/trivy:latest image \
+            aquasec/trivy:canary image \
             --format json \
             --output trivy-custom-image-results.json \
             --platform linux/amd64 \
