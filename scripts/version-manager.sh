@@ -30,7 +30,8 @@ get_current_version() {
 
 # Function to get last version from git tags
 get_last_version() {
-    git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0"
+    local tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0")
+    echo "$tag" | sed 's/^v//'
 }
 
 # Function to analyze commits since last version
@@ -41,14 +42,14 @@ analyze_commits() {
     local feature_count=0
     local fix_count=0
     
-    echo -e "${YELLOW}📊 Analyzing commits since $last_tag${NC}"
+    echo -e "${YELLOW}📊 Analyzing commits since $last_tag${NC}" >&2
     
     # Get commits since last tag
     local commits
-    if [ "$last_tag" = "v0.1.0" ]; then
+    if [ "$last_tag" = "0.1.0" ]; then
         commits=$(git log --oneline --all)
     else
-        commits=$(git log --oneline "$last_tag"..HEAD)
+        commits=$(git log --oneline "v$last_tag"..HEAD)
     fi
     
     # Analyze each commit message
@@ -75,9 +76,9 @@ analyze_commits() {
         fi
     done <<< "$commits"
     
-    echo -e "   🚨 Breaking changes: $breaking_changes"
-    echo -e "   ✨ Features: $feature_count"
-    echo -e "   🐛 Fixes: $fix_count"
+    echo -e "   🚨 Breaking changes: $breaking_changes" >&2
+    echo -e "   ✨ Features: $feature_count" >&2
+    echo -e "   🐛 Fixes: $fix_count" >&2
     
     echo "$version_type"
 }
@@ -87,7 +88,7 @@ calculate_next_version() {
     local current_version=$1
     local version_type=$2
     
-    IFS='.' read -ra version_parts <<< "$current_version"
+    IFS="." read -ra version_parts <<< "$current_version"
     local major=${version_parts[0]}
     local minor=${version_parts[1]}
     local patch=${version_parts[2]}
@@ -152,7 +153,7 @@ EOF
     if [ "$last_tag" = "v0.1.0" ]; then
         git log --oneline --all --pretty=format:"- %s" >> "$release_file"
     else
-        git log --oneline "$last_tag"..HEAD --pretty=format:"- %s" >> "$release_file"
+        git log --oneline "v$last_tag"..HEAD --pretty=format:"- %s" >> "$release_file"
     fi
     
     echo -e "${GREEN}✅ Release notes generated: $release_file${NC}"
@@ -194,13 +195,18 @@ create_release() {
     
     echo -e "${BLUE}🚀 Creating release v$version${NC}"
     
-    # Create git tag
-    git tag -a "v$version" -m "Release v$version"
-    
-    # Push tag
-    git push origin "v$version"
-    
-    echo -e "${GREEN}✅ Git tag v$version created and pushed${NC}"
+    # Check if tag already exists
+    if git rev-parse "v$version" >/dev/null 2>&1; then
+        echo -e "${YELLOW}📝 Tag v$version already exists, skipping tag creation${NC}"
+    else
+        # Create git tag
+        git tag -a "v$version" -m "Release v$version"
+        
+        # Push tag
+        git push origin "v$version"
+        
+        echo -e "${GREEN}✅ Git tag v$version created and pushed${NC}"
+    fi
 }
 
 # Main execution
@@ -222,8 +228,8 @@ main() {
     # Analyze commits
     local version_type=$(analyze_commits "$last_tag")
     
-    # Calculate next version
-    local next_version=$(calculate_next_version "$current_version" "$version_type")
+    # Calculate next version based on last tag, not current version
+    local next_version=$(calculate_next_version "$last_tag" "$version_type")
     echo -e "${GREEN}🎯 Next version: $next_version ($version_type release)${NC}"
     
     # Update Dockerfile
