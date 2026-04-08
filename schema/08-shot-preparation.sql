@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS shot_preparation (
     shot_id UUID PRIMARY KEY REFERENCES shots(id) ON DELETE CASCADE,
     
     -- Grind parameters
-    grind_setting INTEGER,
+    burr_setting INTEGER,
+    side_hopper INTEGER CHECK (side_hopper BETWEEN 1 AND 16),
     dose_grams NUMERIC(5,2) CHECK (dose_grams > 0),
     
     -- Basket information
