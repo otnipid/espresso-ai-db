@@ -28,5 +28,5 @@ CREATE TABLE IF NOT EXISTS shot_preparation (
 );
 
 -- Add indexes for performance
-CREATE INDEX IF NOT EXISTS idx_shot_preparation_grind_setting ON shot_preparation(grind_setting);
+CREATE INDEX IF NOT EXISTS idx_shot_preparation_grind_setting ON shot_preparation(burr_setting, side_hopper);
 CREATE INDEX IF NOT EXISTS idx_shot_preparation_basket_type ON shot_preparation(basket_type);
