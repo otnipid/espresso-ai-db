@@ -7,7 +7,7 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 # Set labels for metadata
 LABEL maintainer="Espresso ML Team"
 LABEL description="PostgreSQL 15 with Espresso ML database schemas (secure)"
-LABEL version="1.0.0"
+LABEL version="1.1.0"
 
 # Set secure environment variables
 ENV POSTGRES_DB=espresso_ml \
