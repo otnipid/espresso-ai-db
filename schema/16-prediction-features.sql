@@ -46,30 +46,46 @@ CREATE TRIGGER update_prediction_features_updated_at
 CREATE OR REPLACE VIEW shot_prediction_features AS
 SELECT 
     s.id as shot_id,
-    s.dose_grams,
-    s.grind_setting,
-    s.water_temp_c,
-    s.extraction_time_seconds,
-    s.yield_grams,
-    s.pressure_bars,
+    s.pulled_at,
+    s.success,
+    -- Shot preparation columns
+    sp.dose_grams,
+    sp.burr_setting,
+    sp.side_hopper,
+    sp.basket_type,
+    sp.basket_size_grams,
+    -- Shot extraction columns
+    se.water_temp_c,
+    se.shot_time_seconds,
+    se.yield_grams,
+    se.avg_pressure_bar,
     -- Aggregate numeric features
-    ARRAY_AGG(CASE WHEN pf.feature_type = 'numeric' THEN 
-        json_build_object(pf.feature_name, pf.feature_value) 
-        END FILTER (WHERE pf.feature_type = 'numeric') 
+    COALESCE(
+        (SELECT json_agg(json_build_object(pf.feature_name, pf.feature_value)) 
+         FROM prediction_features pf 
+         WHERE pf.shot_id = s.id AND pf.feature_type = 'numeric'),
+        '[]'::json
     ) as numeric_features,
     -- Aggregate categorical features
-    ARRAY_AGG(CASE WHEN pf.feature_type = 'categorical' THEN 
-        json_build_object(pf.feature_name, pf.feature_value) 
-        END FILTER (WHERE pf.feature_type = 'categorical') 
+    COALESCE(
+        (SELECT json_agg(json_build_object(pf.feature_name, pf.feature_value)) 
+         FROM prediction_features pf 
+         WHERE pf.shot_id = s.id AND pf.feature_type = 'categorical'),
+        '[]'::json
     ) as categorical_features,
     -- Aggregate boolean features
-    ARRAY_AGG(CASE WHEN pf.feature_type = 'boolean' THEN 
-        json_build_object(pf.feature_name, pf.feature_value) 
-        END FILTER (WHERE pf.feature_type = 'boolean') 
+    COALESCE(
+        (SELECT json_agg(json_build_object(pf.feature_name, pf.feature_value)) 
+         FROM prediction_features pf 
+         WHERE pf.shot_id = s.id AND pf.feature_type = 'boolean'),
+        '[]'::json
     ) as boolean_features
 FROM shots s
-LEFT JOIN prediction_features pf ON s.id = pf.shot_id
-GROUP BY s.id;
+LEFT JOIN shot_preparation sp ON s.id = sp.shot_id
+LEFT JOIN shot_extraction se ON s.id = se.shot_id
+GROUP BY s.id, s.pulled_at, s.success, 
+         sp.dose_grams, sp.burr_setting, sp.side_hopper, sp.basket_type, sp.basket_size_grams,
+         se.water_temp_c, se.shot_time_seconds, se.yield_grams, se.avg_pressure_bar;
 
 -- Comments for documentation
 COMMENT ON TABLE prediction_features IS 'Stores engineered features for ML model training and prediction, ensuring consistency between training and inference';
