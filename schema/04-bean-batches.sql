@@ -1,21 +1,24 @@
 -- ========================================
 -- BEAN BATCHES TABLE
 -- ========================================
--- Purpose: Store specific bean batch information (roast details)
--- Dependencies: beans table
+-- Purpose: Store coffee bean and batch information (consolidated)
+-- Dependencies: None (self-contained)
 -- Idempotent: Yes (uses IF NOT EXISTS)
 
 CREATE TABLE IF NOT EXISTS bean_batches (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    bean_id UUID NOT NULL REFERENCES beans(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    roaster TEXT,
+    country TEXT,
     roast_level TEXT,
     roast_date DATE,
-    roast_degree INTEGER CHECK (roast_degree >= 0 AND roast_degree <= 100),
     bag_open_date DATE,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Add indexes for performance
-CREATE INDEX IF NOT EXISTS idx_bean_batches_bean_id ON bean_batches(bean_id);
+CREATE INDEX IF NOT EXISTS idx_bean_batches_name ON bean_batches(name);
+CREATE INDEX IF NOT EXISTS idx_bean_batches_roaster ON bean_batches(roaster);
+CREATE INDEX IF NOT EXISTS idx_bean_batches_country ON bean_batches(country);
 CREATE INDEX IF NOT EXISTS idx_bean_batches_roast_date ON bean_batches(roast_date);
