@@ -12,12 +12,9 @@
 
 -- Load core entity tables (no dependencies)
 \ir 02-users.sql
-\ir 03-beans.sql
+\ir 04-bean-batches.sql
 \ir 05-machines.sql
 \ir 06-grinders.sql
-
--- Load tables with dependencies
-\ir 04-bean-batches.sql  -- depends on beans
 \ir 07-shots.sql         -- depends on users, bean_batches, machines, grinders
 
 -- Load shot-related tables (depend on shots)
@@ -32,6 +29,10 @@
 
 -- Load performance indexes last
 \ir 14-indexes.sql
+
+\ir 16-prediction-features.sql
+\ir 17-user-feedback.sql
+\ir 18-ml-models.sql
 
 -- Schema creation complete
 SELECT 'Espresso ML schema created successfully' as status;
