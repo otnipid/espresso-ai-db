@@ -32,7 +32,7 @@ jobs:
       release-notes: ${{ steps.version.outputs.release-notes }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -85,7 +85,7 @@ jobs:
       DEPLOY_VERSION: ${{ needs.version-management.outputs.version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Aiven CLI
         run: |
